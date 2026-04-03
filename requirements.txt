@@ -1,0 +1,6 @@
+tree-sitter
+tree-sitter-javascript
+httpx
+qdrant-client
+python-dotenv
+
