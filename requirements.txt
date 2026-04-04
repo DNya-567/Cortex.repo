@@ -3,4 +3,5 @@ tree-sitter-javascript
 httpx
 qdrant-client
 python-dotenv
-
+fastapi
+uvicorn
