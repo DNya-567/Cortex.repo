@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, PointStruct, VectorParams
 
-from chunker.chunker import CodeChunk
+from src.chunker.chunker import CodeChunk
 
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
