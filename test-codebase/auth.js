@@ -1,5 +1,6 @@
 function login(username, password) {
   if (!username || !password) {
+  throw new Error("Username and password are required");
     return false;
   }
   return username === "admin" && password === "secret";
