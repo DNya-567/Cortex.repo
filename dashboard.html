@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Context Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --surface2: #1e1e24;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e8f0;
+    --muted: #7a7a8e;
+    --accent: #6c63ff;
+    --accent2: #00e5a0;
+    --accent3: #ff6b6b;
+    --amber: #ffb347;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    grid-template-rows: 56px 1fr;
+  }
+
+  /* TOP BAR */
+  header {
+    grid-column: 1 / -1;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 16px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent2);
+    letter-spacing: 0.05em;
+  }
+  .logo span { color: var(--muted); }
+  .health-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #333;
+    margin-left: auto;
+    transition: background 0.3s;
+  }
+  .health-dot.ok { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .health-dot.err { background: var(--accent3); }
+  .health-label { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* SIDEBAR */
+  nav {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 20px;
+    font-size: 13px;
+    color: var(--muted);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .nav-item:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+  .nav-item.active { color: var(--accent2); border-left-color: var(--accent2); background: rgba(0,229,160,0.06); }
+  .nav-icon { font-size: 15px; width: 18px; text-align: center; }
+  .nav-section { font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; padding: 16px 20px 6px; font-family: var(--mono); }
+
+  /* MAIN */
+  main {
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* PANELS */
+  .panel { display: none; flex-direction: column; gap: 16px; }
+  .panel.active { display: flex; }
+
+  .panel-title {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-title .badge {
+    font-size: 11px;
+    font-family: var(--mono);
+    background: rgba(108,99,255,0.15);
+    color: var(--accent);
+    border: 1px solid rgba(108,99,255,0.3);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  /* INPUTS */
+  .input-row { display: flex; gap: 10px; }
+  input[type="text"], textarea, select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.2s;
+    flex: 1;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  button:hover { opacity: 0.88; }
+  button:active { transform: scale(0.97); }
+  button.secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* RESULT BOX */
+  .result-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    min-height: 60px;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+  .result-box.streaming { border-color: rgba(0,229,160,0.3); }
+  .cursor { display: inline-block; width: 2px; height: 14px; background: var(--accent2); margin-left: 2px; animation: blink 0.8s infinite; vertical-align: middle; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* CHUNK CARDS */
+  .chunks-grid { display: flex; flex-direction: column; gap: 10px; }
+  .chunk-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .chunk-card:hover { border-color: var(--border2); }
+  .chunk-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chunk-name { font-family: var(--mono); font-size: 13px; color: var(--accent2); font-weight: 500; }
+  .chunk-file { font-size: 12px; color: var(--muted); flex: 1; }
+  .chunk-score {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(0,229,160,0.1);
+    color: var(--accent2);
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+  .chunk-type {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(108,99,255,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(108,99,255,0.2);
+    font-family: var(--mono);
+  }
+  .chunk-body {
+    display: none;
+    padding: 0 16px 14px;
+    border-top: 1px solid var(--border);
+  }
+  .chunk-body.open { display: block; }
+  .chunk-content {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #a8b4c8;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+
+  /* HEALTH CARDS */
+  .health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .health-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .health-card-name { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .health-status { font-size: 20px; font-weight: 500; }
+  .health-status.ok { color: var(--accent2); }
+  .health-status.err { color: var(--accent3); }
+  .health-msg { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+
+  /* FOOTER ROW */
+  .context-footer {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    flex-wrap: wrap;
+  }
+  .context-footer span { display: flex; align-items: center; gap: 4px; }
+  .context-footer .val { color: var(--accent2); }
+  .cached-badge {
+    background: rgba(255,179,71,0.12);
+    color: var(--amber);
+    border: 1px solid rgba(255,179,71,0.25);
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  /* DEPS */
+  .dep-list { display: flex; flex-direction: column; gap: 8px; }
+  .dep-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .dep-arrow { color: var(--accent); font-size: 16px; font-family: var(--mono); }
+  .dep-file { font-family: var(--mono); font-size: 13px; color: var(--text); }
+  .dep-names { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ADR CARDS */
+  .adr-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .adr-id { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 4px; }
+  .adr-title { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+  .adr-decision { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  /* GIT */
+  .commit-list { display: flex; flex-direction: column; gap: 8px; }
+  .commit-item {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .commit-hash { font-family: var(--mono); font-size: 12px; color: var(--accent2); width: 60px; flex-shrink: 0; }
+  .commit-msg { font-size: 13px; flex: 1; }
+  .commit-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .stat-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-val { font-size: 28px; font-weight: 500; color: var(--accent2); font-family: var(--mono); }
+  .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* REPORT */
+  .report-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--text);
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  .report-box h1, .report-box h2, .report-box h3 { color: var(--accent2); margin: 16px 0 8px; font-weight: 500; }
+  .report-box h1 { font-size: 18px; }
+  .report-box h2 { font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .report-box code { font-family: var(--mono); background: var(--bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: var(--accent2); }
+  .report-box pre { background: var(--bg); padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+  .report-box pre code { background: none; padding: 0; }
+
+  /* EMPTY STATE */
+  .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 32px; font-family: var(--mono); }
+
+  /* STREAM TOGGLE */
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .toggle-row input[type="checkbox"] { accent-color: var(--accent2); width: 14px; height: 14px; cursor: pointer; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">context<span>/</span>engine</div>
+  <div style="flex:1"></div>
+  <div class="health-label" id="health-label">checking...</div>
+  <div class="health-dot" id="health-dot"></div>
+</header>
+
+<nav>
+  <div class="nav-section">Query</div>
+  <div class="nav-item active" data-panel="ask">
+    <span class="nav-icon">◈</span> Ask AI
+  </div>
+  <div class="nav-item" data-panel="search">
+    <span class="nav-icon">⊹</span> Search
+  </div>
+  <div class="nav-item" data-panel="report">
+    <span class="nav-icon">⊟</span> Report
+  </div>
+
+  <div class="nav-section">Code</div>
+  <div class="nav-item" data-panel="deps">
+    <span class="nav-icon">⇢</span> Dependencies
+  </div>
+  <div class="nav-item" data-panel="adrs">
+    <span class="nav-icon">⊞</span> ADRs
+  </div>
+  <div class="nav-item" data-panel="git">
+    <span class="nav-icon">⊛</span> Git Log
+  </div>
+
+  <div class="nav-section">System</div>
+  <div class="nav-item" data-panel="health">
+    <span class="nav-icon">◎</span> Health
+  </div>
+  <div class="nav-item" data-panel="index">
+    <span class="nav-icon">⊕</span> Index
+  </div>
+  <div class="nav-item" data-panel="cache">
+    <span class="nav-icon">◫</span> Cache
+  </div>
+</nav>
+
+<main>
+
+  <!-- ASK AI -->
+  <div class="panel active" id="panel-ask">
+    <div class="panel-title">Ask AI <span class="badge">LLM</span></div>
+    <textarea id="ask-input" placeholder="e.g. how does JWT authentication work in this project?"></textarea>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <button id="ask-btn" onclick="doAsk()">Ask</button>
+      <button class="secondary" onclick="doStream()" id="stream-btn">Stream</button>
+      <label class="toggle-row">
+        <input type="checkbox" id="stream-toggle" checked> stream response
+      </label>
+      <button class="secondary" onclick="copyAnswer()" id="copy-btn" style="display:none">Copy</button>
+    </div>
+    <div class="result-box" id="ask-result"><span style="color:var(--muted)">Answer will appear here...</span></div>
+    <div class="context-footer" id="ask-footer" style="display:none"></div>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="panel" id="panel-search">
+    <div class="panel-title">Semantic Search</div>
+    <div class="input-row">
+      <input type="text" id="search-input" placeholder="e.g. attendance calculation" onkeydown="if(event.key==='Enter')doSearch()">
+      <input type="number" id="search-topk" value="5" min="1" max="20" style="width:70px;flex:none">
+      <button onclick="doSearch()">Search</button>
+    </div>
+    <div id="search-results" class="chunks-grid"><div class="empty">Results appear here</div></div>
+  </div>
+
+  <!-- REPORT -->
+  <div class="panel" id="panel-report">
+    <div class="panel-title">Generate Report</div>
+    <div class="input-row">
+      <input type="text" id="report-input" placeholder="e.g. explain the authentication system" onkeydown="if(event.key==='Enter')doReport()">
+      <button onclick="doReport()">Generate</button>
+    </div>
+    <div id="report-out" class="report-box" style="display:none"></div>
+  </div>
+
+  <!-- DEPS -->
+  <div class="panel" id="panel-deps">
+    <div class="panel-title">Dependencies</div>
+    <div class="input-row">
+      <input type="text" id="deps-input" placeholder="e.g. src/routes/auth.js" onkeydown="if(event.key==='Enter')doDeps()">
+      <button onclick="doDeps()">Get Deps</button>
+    </div>
+    <div id="deps-result" class="dep-list"><div class="empty">Enter a file path</div></div>
+  </div>
+
+  <!-- ADRS -->
+  <div class="panel" id="panel-adrs">
+    <div class="panel-title">Architecture Decisions</div>
+    <div class="input-row">
+      <input type="text" id="adrs-input" placeholder="e.g. test-codebase/auth.js" onkeydown="if(event.key==='Enter')doAdrs()">
+      <button onclick="doAdrs()">Get ADRs</button>
+    </div>
+    <div id="adrs-result"><div class="empty">Enter a file path</div></div>
+  </div>
+
+  <!-- GIT LOG -->
+  <div class="panel" id="panel-git">
+    <div class="panel-title">Git History</div>
+    <div class="input-row">
+      <input type="text" id="git-input" placeholder="e.g. src/routes/auth.js" onkeydown="if(event.key==='Enter')doGit()">
+      <button onclick="doGit()">Get History</button>
+    </div>
+    <div id="git-result" class="commit-list"><div class="empty">Enter a file path</div></div>
+  </div>
+
+  <!-- HEALTH -->
+  <div class="panel" id="panel-health">
+    <div class="panel-title">System Health</div>
+    <div>
+      <button onclick="doHealth()">Refresh</button>
+    </div>
+    <div id="health-cards" class="health-grid"><div class="empty">Click Refresh</div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+      <button class="secondary" onclick="doIndex()">Re-index test-codebase</button>
+    </div>
+    <div id="index-result" style="display:none" class="result-box"></div>
+  </div>
+
+  <!-- INDEX -->
+  <div class="panel" id="panel-index">
+    <div class="panel-title">Index Codebase <span class="badge">Embed</span></div>
+    <div class="input-row">
+      <input type="text" id="index-input" value="test-codebase" placeholder="directory path">
+      <button onclick="doIndexCustom()">Index</button>
+    </div>
+    <div id="index-out" style="display:none" class="result-box"></div>
+    <div id="chunk-stats" class="stats-grid" style="margin-top:8px"></div>
+  </div>
+
+  <!-- CACHE -->
+  <div class="panel" id="panel-cache">
+    <div class="panel-title">Query Cache</div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="doGetCacheStats()">Refresh Stats</button>
+      <button class="secondary" onclick="doClearCache()">Clear Cache</button>
+    </div>
+    <div id="cache-stats" class="stats-grid"><div class="empty">Click Refresh Stats</div></div>
+  </div>
+
+</main>
+
+<script>
+const API = 'http://localhost:8000';
+
+// NAV
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('panel-' + item.dataset.panel).classList.add('active');
+  });
+});
+
+// HEALTH CHECK ON LOAD
+async function pingHealth() {
+  try {
+    const r = await fetch(API + '/health');
+    const d = await r.json();
+    document.getElementById('health-dot').className = 'health-dot ok';
+    document.getElementById('health-label').textContent = 'API online';
+  } catch {
+    document.getElementById('health-dot').className = 'health-dot err';
+    document.getElementById('health-label').textContent = 'API offline';
+  }
+}
+pingHealth();
+
+// COPY
+function copyAnswer() {
+  const text = document.getElementById('ask-result').textContent;
+  navigator.clipboard.writeText(text);
+}
+
+// ASK
+async function doAsk() {
+  const task = document.getElementById('ask-input').value.trim();
+  if (!task) return;
+  const useStream = document.getElementById('stream-toggle').checked;
+  if (useStream) { doStream(); return; }
+
+  const btn = document.getElementById('ask-btn');
+  btn.disabled = true; btn.textContent = 'Asking...';
+  const box = document.getElementById('ask-result');
+  box.textContent = '';
+  document.getElementById('ask-footer').style.display = 'none';
+  document.getElementById('copy-btn').style.display = 'none';
+
+  try {
+    const r = await fetch(API + '/ask?task=' + encodeURIComponent(task));
+    const d = await r.json();
+    if (!r.ok) { box.textContent = 'Error: ' + (d.detail || r.status); return; }
+    box.textContent = d.answer;
+    showFooter(d);
+    document.getElementById('copy-btn').style.display = '';
+  } catch(e) {
+    box.textContent = 'Could not reach API. Is it running on port 8000?';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Ask';
+  }
+}
+
+// STREAM
+function doStream() {
+  const task = document.getElementById('ask-input').value.trim();
+  if (!task) return;
+  const box = document.getElementById('ask-result');
+  box.textContent = '';
+  box.classList.add('streaming');
+  document.getElementById('ask-footer').style.display = 'none';
+  document.getElementById('copy-btn').style.display = 'none';
+
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  box.appendChild(cursor);
+
+  const es = new EventSource(API + '/stream?task=' + encodeURIComponent(task));
+  es.onmessage = e => {
+    if (e.data === '[DONE]') {
+      es.close();
+      cursor.remove();
+      box.classList.remove('streaming');
+      document.getElementById('copy-btn').style.display = '';
+      return;
+    }
+    box.insertBefore(document.createTextNode(e.data), cursor);
+    box.scrollTop = box.scrollHeight;
+  };
+  es.onerror = () => {
+    es.close();
+    cursor.remove();
+    box.classList.remove('streaming');
+  };
+}
+
+function showFooter(d) {
+  const f = document.getElementById('ask-footer');
+  const cu = d.context_used || {};
+  f.style.display = 'flex';
+  f.innerHTML = `
+    <span>chunks <b class="val">${cu.chunks||0}</b></span>
+    <span>ADRs <b class="val">${cu.adrs||0}</b></span>
+    <span>deps <b class="val">${cu.dependencies||0}</b></span>
+    <span>commits <b class="val">${cu.git_commits||0}</b></span>
+    ${d.cached ? '<span class="cached-badge">CACHED</span>' : ''}
+  `;
+}
+
+// SEARCH
+async function doSearch() {
+  const q = document.getElementById('search-input').value.trim();
+  const k = document.getElementById('search-topk').value;
+  if (!q) return;
+  const el = document.getElementById('search-results');
+  el.innerHTML = '<div class="empty">Searching...</div>';
+
+  try {
+    const r = await fetch(API + '/search?query=' + encodeURIComponent(q) + '&top_k=' + k);
+    const d = await r.json();
+    if (!d.results || !d.results.length) { el.innerHTML = '<div class="empty">No results found</div>'; return; }
+    el.innerHTML = d.results.map((c,i) => `
+      <div class="chunk-card">
+        <div class="chunk-header" onclick="toggleChunk(${i})">
+          <span class="chunk-name">${c.chunk_name}</span>
+          <span class="chunk-type">${c.chunk_type}</span>
+          <span class="chunk-file">${c.file_path} :${c.start_line}-${c.end_line}</span>
+          <span class="chunk-score">${(c.score*100).toFixed(1)}%</span>
+        </div>
+        <div class="chunk-body" id="cb-${i}">
+          <div class="chunk-content">${escHtml(c.content)}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+function toggleChunk(i) {
+  const el = document.getElementById('cb-' + i);
+  el.classList.toggle('open');
+}
+
+// REPORT
+async function doReport() {
+  const task = document.getElementById('report-input').value.trim();
+  if (!task) return;
+  const el = document.getElementById('report-out');
+  el.style.display = 'block';
+  el.innerHTML = '<span style="color:var(--muted)">Generating report...</span>';
+
+  try {
+    const r = await fetch(API + '/report?task=' + encodeURIComponent(task));
+    const d = await r.json();
+    el.innerHTML = mdToHtml(d.report || '');
+  } catch(e) {
+    el.innerHTML = 'Error: ' + e.message;
+  }
+}
+
+// DEPS
+async function doDeps() {
+  const file = document.getElementById('deps-input').value.trim();
+  if (!file) return;
+  const el = document.getElementById('deps-result');
+  el.innerHTML = '<div class="empty">Loading...</div>';
+
+  try {
+    const r = await fetch(API + '/graph/dependencies?file=' + encodeURIComponent(file));
+    const d = await r.json();
+    if (!d.dependencies || !d.dependencies.length) {
+      el.innerHTML = '<div class="empty">No dependencies found</div>'; return;
+    }
+    el.innerHTML = d.dependencies.map(dep => `
+      <div class="dep-item">
+        <span class="dep-arrow">→</span>
+        <div>
+          <div class="dep-file">${dep.imported_file}</div>
+          <div class="dep-names">${dep.imported_names}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+// ADRS
+async function doAdrs() {
+  const file = document.getElementById('adrs-input').value.trim();
+  if (!file) return;
+  const el = document.getElementById('adrs-result');
+  el.innerHTML = '<div class="empty">Loading...</div>';
+
+  try {
+    const r = await fetch(API + '/adrs?file=' + encodeURIComponent(file));
+    const d = await r.json();
+    if (!d.adrs || !d.adrs.length) {
+      el.innerHTML = '<div class="empty">No ADRs found for this file</div>'; return;
+    }
+    el.innerHTML = d.adrs.map(a => `
+      <div class="adr-card">
+        <div class="adr-id">${a.adr_id} · ${a.status}</div>
+        <div class="adr-title">${a.title}</div>
+        <div class="adr-decision">${a.decision}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+// GIT
+async function doGit() {
+  const file = document.getElementById('git-input').value.trim();
+  if (!file) return;
+  const el = document.getElementById('git-result');
+  el.innerHTML = '<div class="empty">Loading...</div>';
+
+  try {
+    const r = await fetch(API + '/context-pack?task=git+history+for+' + encodeURIComponent(file));
+    const d = await r.json();
+    const commits = d.git_history || [];
+    if (!commits.length) {
+      el.innerHTML = '<div class="empty">No commits found</div>'; return;
+    }
+    el.innerHTML = commits.map(c => `
+      <div class="commit-item">
+        <span class="commit-hash">${c.commit_hash}</span>
+        <span class="commit-msg">${escHtml(c.message)}</span>
+        <span class="commit-meta">${c.author_name} · ${c.date}</span>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+// HEALTH
+async function doHealth() {
+  const el = document.getElementById('health-cards');
+  el.innerHTML = '<div class="empty">Checking...</div>';
+  try {
+    const r = await fetch(API + '/health/full');
+    const d = await r.json();
+    const services = ['ollama','qdrant','qdrant_collection','sqlite'];
+    el.innerHTML = services.map(s => {
+      const svc = d[s] || {};
+      const ok = svc.status === 'ok';
+      return `<div class="health-card">
+        <div class="health-card-name">${s}</div>
+        <div class="health-status ${ok?'ok':'err'}">${ok?'OK':'ERR'}</div>
+        <div class="health-msg">${svc.message||''}</div>
+      </div>`;
+    }).join('') + `<div class="health-card">
+      <div class="health-card-name">overall</div>
+      <div class="health-status ${d.overall==='healthy'?'ok':'err'}">${(d.overall||'').toUpperCase()}</div>
+    </div>`;
+    document.getElementById('health-dot').className = 'health-dot ' + (d.overall==='healthy'?'ok':'err');
+    document.getElementById('health-label').textContent = d.overall;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+// INDEX
+async function doIndex() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Indexing...';
+  const el = document.getElementById('index-result');
+  el.style.display = 'block';
+  el.textContent = 'Indexing test-codebase...';
+  try {
+    const r = await fetch(API + '/index?directory=test-codebase');
+    const d = await r.json();
+    el.textContent = JSON.stringify(d, null, 2);
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Re-index test-codebase';
+  }
+}
+
+async function doIndexCustom() {
+  const dir = document.getElementById('index-input').value.trim() || 'test-codebase';
+  const el = document.getElementById('index-out');
+  el.style.display = 'block';
+  el.textContent = 'Indexing ' + dir + '...';
+  try {
+    const r = await fetch(API + '/index?directory=' + encodeURIComponent(dir));
+    const d = await r.json();
+    el.textContent = JSON.stringify(d, null, 2);
+  } catch(e) {
+    el.textContent = 'Error: ' + e.message;
+  }
+}
+
+// CACHE
+async function doGetCacheStats() {
+  const el = document.getElementById('cache-stats');
+  try {
+    const r = await fetch(API + '/cache/stats');
+    const d = await r.json();
+    el.innerHTML = `
+      <div class="stat-card"><div class="stat-val">${d.total_entries}</div><div class="stat-label">cached queries</div></div>
+      <div class="stat-card"><div class="stat-val">${d.total_hits}</div><div class="stat-label">total hits</div></div>
+    `;
+  } catch(e) {
+    el.innerHTML = '<div class="empty">API unreachable</div>';
+  }
+}
+
+async function doClearCache() {
+  if (!confirm('Clear all cached queries?')) return;
+  try {
+    await fetch(API + '/cache', { method: 'DELETE' });
+    doGetCacheStats();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// UTILS
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function mdToHtml(md) {
+  return md
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '<br><br>');
+}
+</script>
+</body>
+</html>
