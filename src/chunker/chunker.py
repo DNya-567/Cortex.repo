@@ -153,3 +153,46 @@ def chunk_directory(directory: str | Path) -> list[CodeChunk]:
 
     return chunks
 
+
+def chunk_file_any(file_path: str) -> list[CodeChunk]:
+    """
+    Route to correct chunker based on file extension.
+    .js .ts .jsx .tsx → chunk_file()
+    .py → chunk_python_file()
+    everything else → chunk_generic_file()
+    """
+    from src.chunker.python_chunker import chunk_python_file
+    from src.chunker.generic_chunker import chunk_generic_file
+
+    ext = Path(file_path).suffix.lower()
+    if ext in {".js", ".ts", ".jsx", ".tsx"}:
+        return chunk_file(file_path)
+    elif ext == ".py":
+        return chunk_python_file(file_path)
+    else:
+        return chunk_generic_file(file_path)
+
+
+def chunk_directory_any(directory: str) -> list[CodeChunk]:
+    """
+    Chunk directory supporting all languages.
+    Handles .js .ts .jsx .tsx .py .java .go .rs .c .h
+    .cpp .cc .cxx .cs .rb .php .kt .swift
+    """
+    supported = {
+        ".js", ".ts", ".jsx", ".tsx", ".py",
+        ".java", ".go", ".rs", ".c", ".h",
+        ".cpp", ".cc", ".cxx", ".cs", ".rb",
+        ".php", ".kt", ".swift"
+    }
+    skip_dirs = {"node_modules", ".git", "venv", "__pycache__"}
+    all_chunks = []
+
+    for fp in Path(directory).rglob("*"):
+        if any(part in fp.parts for part in skip_dirs):
+            continue
+        if fp.is_file() and fp.suffix.lower() in supported:
+            all_chunks.extend(chunk_file_any(str(fp)))
+
+    return all_chunks
+

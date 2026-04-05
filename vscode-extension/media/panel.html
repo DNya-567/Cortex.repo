@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context Engine</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--vscode-input-border);
+      background-color: var(--vscode-editor-background);
+    }
+
+    .tab-button {
+      flex: 1;
+      padding: 12px 16px;
+      border: none;
+      background-color: transparent;
+      color: var(--vscode-editor-foreground);
+      cursor: pointer;
+      font-size: 13px;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab-button:hover {
+      background-color: var(--vscode-input-background);
+    }
+
+    .tab-button.active {
+      border-bottom-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    textarea,
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--vscode-input-border);
+      background-color: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      font-size: 12px;
+      border-radius: 4px;
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    textarea {
+      min-height: 100px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button {
+      padding: 8px 16px;
+      border: none;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.8;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    .loading {
+      display: none;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--vscode-editor-foreground);
+    }
+
+    .loading.show {
+      display: block;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--vscode-editor-foreground);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .result-box {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .result-card {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      padding: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .result-card:hover {
+      border-color: var(--vscode-button-background);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .card-content {
+      display: none;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--vscode-input-border);
+    }
+
+    .card-content.show {
+      display: block;
+    }
+
+    .health-grid {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .health-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background-color: var(--vscode-input-background);
+      border-radius: 4px;
+      border: 1px solid var(--vscode-input-border);
+    }
+
+    .health-icon {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    .health-icon.ok {
+      color: #4ec9b0;
+    }
+
+    .health-icon.error {
+      color: #f48771;
+    }
+
+    .health-status {
+      flex: 1;
+    }
+
+    .health-service {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .health-message {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .overall-status {
+      margin-top: 16px;
+      padding: 12px;
+      background-color: var(--vscode-input-background);
+      border-radius: 4px;
+      border: 2px solid var(--vscode-input-border);
+    }
+
+    .overall-label {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 4px;
+    }
+
+    .overall-value {
+      font-size: 16px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .footer {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid var(--vscode-input-border);
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .markdown-content {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    .markdown-content h1,
+    .markdown-content h2,
+    .markdown-content h3 {
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .markdown-content h1 {
+      font-size: 18px;
+    }
+
+    .markdown-content h2 {
+      font-size: 16px;
+    }
+
+    .markdown-content h3 {
+      font-size: 14px;
+    }
+
+    .markdown-content pre {
+      background-color: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border);
+      padding: 8px 12px;
+      border-radius: 4px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+
+    .markdown-content code {
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      font-size: 12px;
+    }
+
+    .markdown-content ul,
+    .markdown-content ol {
+      margin-left: 20px;
+      margin-bottom: 8px;
+    }
+
+    .markdown-content li {
+      margin-bottom: 4px;
+    }
+
+    .error-box {
+      background-color: rgba(244, 135, 113, 0.1);
+      border: 1px solid #f48771;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+      color: #f48771;
+      font-size: 12px;
+    }
+
+    .success-box {
+      background-color: rgba(78, 201, 176, 0.1);
+      border: 1px solid #4ec9b0;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+      color: #4ec9b0;
+      font-size: 12px;
+    }
+
+    .streaming-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background-color: var(--vscode-editor-foreground);
+      animation: blink 1s infinite;
+      margin-left: 4px;
+    }
+
+    @keyframes blink {
+      0%, 49%, 100% { opacity: 1; }
+      50%, 99% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-button active" data-tab="ask">Ask AI</button>
+      <button class="tab-button" data-tab="search">Search</button>
+      <button class="tab-button" data-tab="health">Health</button>
+      <button class="tab-button" data-tab="graph">Graph</button>
+    </div>
+
+    <div class="content">
+      <!-- Ask AI Tab -->
+      <div id="ask" class="tab-content active">
+        <h2 style="margin-bottom: 16px;">Ask the AI Agent</h2>
+
+        <div class="form-group">
+          <label for="ask-input">Your question:</label>
+          <textarea id="ask-input" placeholder="e.g., why is login failing?"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="stream-toggle" checked>
+            Stream response (real-time)
+          </label>
+        </div>
+
+        <div class="button-group">
+          <button id="ask-button">Ask</button>
+          <button id="ask-copy" style="display: none;">Copy Answer</button>
+        </div>
+
+        <div id="ask-loading" class="loading">
+          <span class="spinner"></span>Loading...
+        </div>
+
+        <div id="ask-error" class="error-box" style="display: none;"></div>
+        <div id="ask-result" class="result-box" style="display: none;"></div>
+
+        <div id="ask-footer" class="footer" style="display: none;"></div>
+      </div>
+
+      <!-- Search Tab -->
+      <div id="search" class="tab-content">
+        <h2 style="margin-bottom: 16px;">Semantic Code Search</h2>
+
+        <div class="form-group">
+          <label for="search-input">Search query:</label>
+          <input type="text" id="search-input" placeholder="e.g., login function">
+        </div>
+
+        <div class="button-group">
+          <button id="search-button">Search</button>
+        </div>
+
+        <div id="search-loading" class="loading">
+          <span class="spinner"></span>Searching...
+        </div>
+
+        <div id="search-error" class="error-box" style="display: none;"></div>
+        <div id="search-results"></div>
+      </div>
+
+      <!-- Health Tab -->
+      <div id="health" class="tab-content">
+        <h2 style="margin-bottom: 16px;">System Health</h2>
+
+        <div class="button-group">
+          <button id="health-button">Check Health</button>
+          <button id="index-button">Re-index Codebase</button>
+        </div>
+
+        <div id="health-loading" class="loading">
+          <span class="spinner"></span>Checking...
+        </div>
+
+        <div id="health-error" class="error-box" style="display: none;"></div>
+        <div id="health-results"></div>
+      </div>
+
+      <!-- Graph Tab -->
+      <div id="graph" class="tab-content">
+        <h2 style="margin-bottom: 16px;">Code Graph Analysis</h2>
+
+        <div class="form-group">
+          <label for="graph-input">File path:</label>
+          <input type="text" id="graph-input" placeholder="e.g., test-codebase/auth.js">
+        </div>
+
+        <div class="button-group">
+          <button id="deps-button">Get Dependencies</button>
+          <button id="report-button">Generate Report</button>
+        </div>
+
+        <div id="graph-loading" class="loading">
+          <span class="spinner"></span>Loading...
+        </div>
+
+        <div id="graph-error" class="error-box" style="display: none;"></div>
+        <div id="graph-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const vscode = acquireVsCodeApi();
+
+    // Tab switching
+    document.querySelectorAll(".tab-button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-button").forEach((b) => b.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
+
+        btn.classList.add("active");
+        const tabId = btn.getAttribute("data-tab");
+        document.getElementById(tabId).classList.add("active");
+      });
+    });
+
+    // Ask AI
+    document.getElementById("ask-button").addEventListener("click", () => {
+      const text = document.getElementById("ask-input").value.trim();
+      const useStream = document.getElementById("stream-toggle").checked;
+
+      if (!text) {
+        alert("Please enter a question");
+        return;
+      }
+
+      if (useStream) {
+        streamAsk(text);
+      } else {
+        showLoading("ask");
+        vscode.postMessage({ type: "ask", text });
+      }
+    });
+
+    // Search
+    document.getElementById("search-button").addEventListener("click", () => {
+      const text = document.getElementById("search-input").value.trim();
+      if (!text) {
+        alert("Please enter a search query");
+        return;
+      }
+      showLoading("search");
+      vscode.postMessage({ type: "search", text });
+    });
+
+    // Health
+    document.getElementById("health-button").addEventListener("click", () => {
+      showLoading("health");
+      vscode.postMessage({ type: "health" });
+    });
+
+    document.getElementById("index-button").addEventListener("click", () => {
+      showLoading("health");
+      vscode.postMessage({ type: "index" });
+    });
+
+    // Graph
+    document.getElementById("deps-button").addEventListener("click", () => {
+      const text = document.getElementById("graph-input").value.trim();
+      if (!text) {
+        alert("Please enter a file path");
+        return;
+      }
+      showLoading("graph");
+      vscode.postMessage({ type: "deps", text });
+    });
+
+    document.getElementById("report-button").addEventListener("click", () => {
+      const text = document.getElementById("graph-input").value.trim();
+      if (!text) {
+        alert("Please enter a file path or task");
+        return;
+      }
+      showLoading("graph");
+      vscode.postMessage({ type: "report", text });
+    });
+
+    function showLoading(tab) {
+      document.getElementById(`${tab}-loading`).classList.add("show");
+      document.getElementById(`${tab}-error`).style.display = "none";
+      document.getElementById(`${tab}-results`)?.innerHTML = "";
+    }
+
+    function hideLoading(tab) {
+      document.getElementById(`${tab}-loading`).classList.remove("show");
+    }
+
+    window.addEventListener("message", (event) => {
+      const { type, data, error } = event.data;
+
+      hideLoading(type);
+
+      if (error) {
+        showError(type, error);
+        return;
+      }
+
+      if (type === "ask") {
+        handleAskResult(data);
+      } else if (type === "search") {
+        handleSearchResult(data);
+      } else if (type === "health") {
+        handleHealthResult(data);
+      } else if (type === "index") {
+        showSuccess("health", "Codebase re-indexed successfully!");
+      } else if (type === "deps") {
+        handleDepsResult(data);
+      } else if (type === "report") {
+        handleReportResult(data);
+      }
+    });
+
+    function showError(tab, msg) {
+      const box = document.getElementById(`${tab}-error`);
+      box.textContent = msg;
+      box.style.display = "block";
+    }
+
+    function showSuccess(tab, msg) {
+      const box = document.getElementById(`${tab}-error`);
+      box.className = "success-box";
+      box.textContent = msg;
+      box.style.display = "block";
+    }
+
+    function handleAskResult(data) {
+      const resultBox = document.getElementById("ask-result");
+      const footer = document.getElementById("ask-footer");
+      const copyBtn = document.getElementById("ask-copy");
+
+      const answer = data.answer || "";
+      const context = data.context_used || {};
+      const cached = data.cached || false;
+
+      resultBox.textContent = answer;
+      resultBox.style.display = "block";
+
+      footer.innerHTML = `
+        Chunks: ${context.chunks || 0} |
+        ADRs: ${context.adrs || 0} |
+        Deps: ${context.dependencies || 0} |
+        Cached: ${cached ? "yes" : "no"}
+      `;
+      footer.style.display = "block";
+
+      copyBtn.style.display = "inline-block";
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(answer).then(() => {
+          alert("Answer copied to clipboard!");
+        });
+      };
+    }
+
+    function handleSearchResult(data) {
+      const results = document.getElementById("search-results");
+      const items = data.results || [];
+
+      if (items.length === 0) {
+        results.innerHTML = "<p>No results found</p>";
+        return;
+      }
+
+      results.innerHTML = items.map((item, idx) => {
+        const score = (item.score || 0).toFixed(2);
+        const name = item.chunk_name || "Unknown";
+        const file = item.file_path || "Unknown";
+        const content = item.content || "";
+        const lines = `${item.start_line || 0}-${item.end_line || 0}`;
+
+        return `
+          <div class="result-card" onclick="this.querySelector('.card-content').classList.toggle('show')">
+            <div class="card-header">
+              <div class="card-title">${name}</div>
+              <div class="card-meta">Score: ${score}</div>
+            </div>
+            <div class="card-meta">${file} (lines ${lines})</div>
+            <div class="card-content">
+              <pre style="margin: 0;">${content}</pre>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function handleHealthResult(data) {
+      const results = document.getElementById("health-results");
+
+      const services = ["ollama", "qdrant", "qdrant_collection", "sqlite"];
+      let html = '<div class="health-grid">';
+
+      services.forEach((service) => {
+        const info = data[service] || {};
+        const status = info.status || "unknown";
+        const message = info.message || "";
+        const icon = status === "ok" ? "✓" : "✗";
+        const iconClass = status === "ok" ? "ok" : "error";
+
+        html += `
+          <div class="health-item">
+            <div class="health-icon ${iconClass}">${icon}</div>
+            <div class="health-status">
+              <div class="health-service">${service}</div>
+              <div class="health-message">${message}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+
+      const overall = data.overall || "unknown";
+      const overallIcon = overall === "healthy" ? "✓" : "⚠";
+      const overallClass = overall === "healthy" ? "ok" : "error";
+
+      html += `
+        <div class="overall-status">
+          <div class="overall-label">Overall Status</div>
+          <div class="overall-value" style="color: ${overall === 'healthy' ? '#4ec9b0' : '#f48771'};">
+            ${overallIcon} ${overall}
+          </div>
+        </div>
+      `;
+
+      results.innerHTML = html;
+    }
+
+    function handleDepsResult(data) {
+      const results = document.getElementById("graph-results");
+      const deps = data.dependencies || [];
+
+      if (deps.length === 0) {
+        results.innerHTML = "<p>No dependencies found</p>";
+        return;
+      }
+
+      let html = `<h3>Dependencies of ${data.file}</h3><ul>`;
+      deps.forEach((dep) => {
+        html += `<li><code>${dep.imported_file}</code> → ${dep.imported_names}</li>`;
+      });
+      html += "</ul>";
+
+      results.innerHTML = html;
+    }
+
+    function handleReportResult(data) {
+      const results = document.getElementById("graph-results");
+      const report = data.report || "";
+
+      const div = document.createElement("div");
+      div.className = "markdown-content result-box";
+      div.innerHTML = markdownToHtml(report);
+
+      results.innerHTML = "";
+      results.appendChild(div);
+    }
+
+    function markdownToHtml(md) {
+      let html = md
+        .replace(/^### (.*?)$/gm, "<h3>$1</h3>")
+        .replace(/^## (.*?)$/gm, "<h2>$1</h2>")
+        .replace(/^# (.*?)$/gm, "<h1>$1</h1>")
+        .replace(/```(.*?)\n([\s\S]*?)```/g, "<pre><code>$2</code></pre>")
+        .replace(/`([^`]*)`/g, "<code>$1</code>")
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/\*(.*?)\*/g, "<em>$1</em>")
+        .replace(/^- (.*?)$/gm, "<li>$1</li>")
+        .replace(/(<li>.*?<\/li>)/s, "<ul>$1</ul>")
+        .replace(/\n\n/g, "</p><p>")
+        .replace(/^\s*(.*?)\s*$/gm, "<p>$1</p>");
+      return html;
+    }
+
+    function streamAsk(text) {
+      showLoading("ask");
+      document.getElementById("ask-result").style.display = "block";
+      document.getElementById("ask-result").textContent = "";
+
+      const eventSource = new EventSource(`http://localhost:8000/stream?task=${encodeURIComponent(text)}`);
+      let fullAnswer = "";
+
+      eventSource.onmessage = (event) => {
+        const token = event.data;
+
+        if (token === "[DONE]") {
+          eventSource.close();
+          document.getElementById("ask-loading").classList.remove("show");
+
+          const cursor = document.querySelector(".streaming-cursor");
+          if (cursor) cursor.remove();
+
+          document.getElementById("ask-copy").style.display = "inline-block";
+          document.getElementById("ask-footer").style.display = "block";
+          document.getElementById("ask-footer").innerHTML = "Streamed from Ollama";
+          return;
+        }
+
+        fullAnswer += token;
+        document.getElementById("ask-result").innerHTML = fullAnswer.replace(/</g, "&lt;").replace(/>/g, "&gt;") + '<span class="streaming-cursor"></span>';
+        document.getElementById("ask-result").scrollTop = document.getElementById("ask-result").scrollHeight;
+      };
+
+      eventSource.onerror = (error) => {
+        eventSource.close();
+        document.getElementById("ask-loading").classList.remove("show");
+        showError("ask", "Streaming failed: " + error.message);
+      };
+    }
+
+  </script>
+</body>
+</html>
+

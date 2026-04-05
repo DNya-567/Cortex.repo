@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: context-engine-qdrant
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT_API_KEY=
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: context-engine-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_KEEP_ALIVE=5m
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  context-engine:
+    build: .
+    container_name: context-engine-api
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+      - QDRANT_URL=http://qdrant:6333
+      - COLLECTION_NAME=code_chunks
+      - EMBED_MODEL=nomic-embed-text
+      - OLLAMA_CHAT_MODEL=tinyllama
+      - AUTH_ENABLED=false
+      - PYTHONPATH=/app
+    volumes:
+      - ./test-codebase:/app/test-codebase
+      - ./docs:/app/docs
+      - ./graph.db:/app/graph.db
+    depends_on:
+      - qdrant
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+    driver: local
+  ollama_data:
+    driver: local
+

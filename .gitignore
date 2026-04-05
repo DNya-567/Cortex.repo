@@ -1,0 +1,25 @@
+@"
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment - never commit real secrets
+.env
+
+# Auto-generated database
+graph.db
+
+# IDE folders
+.idea/
+
+# Temp/test output
+test_output.txt
+FILES_CREATED.md
+
+# Node modules (if any)
+node_modules/
+
+# Virtual environment
+venv/
+"@ | Out-File -FilePath .gitignore -Encoding utf8

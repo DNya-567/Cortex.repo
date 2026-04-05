@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
-from indexer import index_directory
+from src.indexer import index_directory
 
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
