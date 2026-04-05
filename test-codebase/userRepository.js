@@ -1,5 +1,7 @@
+import { toTitleCase } from './utils';
+
 export function findUserById(id) {
-  return { id, name: "Jane" };
+  return { id, name: toTitleCase("jane doe") };
 }
 
 export const saveUser = (user) => {
@@ -15,4 +17,3 @@ export class UserRepository {
     return id > 0;
   }
 }
-

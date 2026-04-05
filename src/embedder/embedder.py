@@ -12,8 +12,12 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "nomic-embed-text")
 
+MAX_CHARS = 8000  # nomic-embed-text context limit safety margin
+
 
 def get_embedding(text: str) -> list[float]:
+    text = text[:MAX_CHARS]  # truncate oversized chunks before embedding
+
     endpoint = f"{OLLAMA_URL.rstrip('/')}/api/embeddings"
 
     try:
@@ -38,4 +42,3 @@ def get_embedding(text: str) -> list[float]:
         raise RuntimeError("Ollama response did not include a valid 'embedding' array.")
 
     return [float(value) for value in embedding]
-
