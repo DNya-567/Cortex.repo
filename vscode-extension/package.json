@@ -1,0 +1,20 @@
+{
+  "name": "context-engine",
+  "displayName": "Context Engine",
+  "description": "AI-native codebase context engine for VS Code",
+  "version": "0.0.1",
+  "engines": { "vscode": "^1.74.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onCommand:contextEngine.openPanel"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "contextEngine.openPanel",
+        "title": "Context Engine: Open Panel"
+      }
+    ]
+  },
+  "dependencies": {}
+}
+

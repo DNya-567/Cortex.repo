@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from chunker.chunker import chunk_directory
-from embedder.embedder import get_embedding
-from storage.qdrant_store import store_chunks_batch
+from src.chunker.chunker import chunk_directory
+from src.embedder.embedder import get_embedding
+from src.storage.qdrant_store import store_chunks_batch
 
 
 BATCH_SIZE = 16

@@ -1,7 +1,9 @@
+import { findUserById } from './userRepository';
+import { toTitleCase } from './utils';
+
 function login(username, password) {
   if (!username || !password) {
-  throw new Error("Username and password are REALLY required");
-    return false;
+    throw new Error("Username and password are REALLY required");
   }
   return username === "admin" && password === "secret";
 }
@@ -19,4 +21,3 @@ class AuthService {
     return Boolean(token);
   }
 }
-
