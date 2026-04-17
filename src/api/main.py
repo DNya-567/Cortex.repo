@@ -16,9 +16,20 @@ from src.context.adr_store import get_adrs_for_file
 from src.reporter.report import generate_report
 from src.auth.middleware import require_auth
 from src.auth.api_keys import generate_api_key, list_api_keys, revoke_api_key
+from src.github.repo import get_repo_info, get_file_tree, get_file_tree_recursive, get_file_content
+from src.github.indexer import index_github_repo
+from src.github.pr_reader import list_pull_requests, get_pr_summary
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI(title="Context Engine Search API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _watchers = {}
 
@@ -341,3 +352,228 @@ def auth_status() -> dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# GitHub Integration Endpoints
+# ============================================================================
+
+@app.get("/github/repo")
+def github_repo_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1)
+) -> dict:
+    """Get GitHub repository metadata."""
+    try:
+        return get_repo_info(owner, repo)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/tree")
+def github_tree_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    path: str = Query(""),
+    branch: str = Query("main")
+) -> dict:
+    """Get file tree for a repository path."""
+    try:
+        tree = get_file_tree(owner, repo, branch, path)
+        return {
+            "owner": owner,
+            "repo": repo,
+            "path": path,
+            "tree": tree,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/tree/recursive")
+def github_tree_recursive_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    branch: str = Query("main"),
+    depth: int = Query(3, ge=1, le=10)
+) -> dict:
+    """Get recursive file tree for a repository."""
+    try:
+        tree = get_file_tree_recursive(owner, repo, branch, "", depth)
+        return {
+            "owner": owner,
+            "repo": repo,
+            "tree": tree,
+            "total": len(tree),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/file")
+def github_file_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    path: str = Query(..., min_length=1),
+    branch: str = Query("main")
+) -> dict:
+    """Get file content from a repository."""
+    try:
+        return get_file_content(owner, repo, path, branch)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/index")
+def github_index_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    branch: str = Query("main")
+) -> dict:
+    """Index a GitHub repository into Qdrant."""
+    try:
+        return index_github_repo(owner, repo, branch)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/prs")
+def github_prs_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    state: str = Query("open")
+) -> dict:
+    """List pull requests for a repository."""
+    try:
+        prs = list_pull_requests(owner, repo, state, limit=20)
+        return {
+            "owner": owner,
+            "repo": repo,
+            "state": state,
+            "prs": prs,
+            "total": len(prs),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/github/pr")
+def github_pr_endpoint(
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    number: int = Query(..., ge=1)
+) -> dict:
+    """Get detailed PR summary with diff."""
+    try:
+        return get_pr_summary(owner, repo, number)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== ORCHESTRATOR ENDPOINTS ====================
+
+@app.get("/orchestrate/agents")
+def orchestrate_agents_endpoint() -> dict:
+    """Get list of available agents."""
+    from src.orchestrator.agents import get_available_agents
+    agents = get_available_agents()
+    return {"agents": agents, "total": len(agents)}
+
+
+@app.get("/orchestrate")
+def orchestrate_endpoint(
+    task: str = Query(..., min_length=1),
+    mode: str = Query("auto")
+) -> dict:
+    """Run multi-agent orchestration pipeline."""
+    if not task or not task.strip():
+        raise HTTPException(status_code=400, detail="task parameter is required")
+
+    try:
+        from src.orchestrator.orchestrator import orchestrate
+        result = orchestrate(task, mode=mode, repo_path=".")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/orchestrate/github")
+def orchestrate_github_endpoint(
+    task: str = Query(..., min_length=1),
+    owner: str = Query(..., min_length=1),
+    repo: str = Query(..., min_length=1),
+    branch: str = Query("main"),
+    mode: str = Query("auto")
+) -> dict:
+    """Run orchestration on a GitHub repository."""
+    if not task or not task.strip():
+        raise HTTPException(status_code=400, detail="task parameter is required")
+
+    try:
+        from src.orchestrator.orchestrator import orchestrate_github
+        result = orchestrate_github(task, owner, repo, branch=branch, mode=mode)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/orchestrate/history")
+def orchestrate_history_endpoint(limit: int = Query(20, ge=1, le=100)) -> dict:
+    """Get orchestration run history."""
+    from src.orchestrator.history import list_runs
+    runs = list_runs(limit=limit)
+    return {"runs": runs, "total": len(runs)}
+
+
+@app.get("/orchestrate/history/{run_id}")
+def orchestrate_history_get_endpoint(run_id: str) -> dict:
+    """Get specific orchestration run details."""
+    from src.orchestrator.history import get_run
+    result = get_run(run_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return result
+
+
+@app.delete("/orchestrate/history/{run_id}")
+def orchestrate_history_delete_endpoint(run_id: str) -> dict:
+    """Delete an orchestration run."""
+    from src.orchestrator.history import delete_run
+    if delete_run(run_id):
+        return {"status": "deleted", "run_id": run_id}
+    else:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+
+
+@app.get("/recommend")
+def recommend_endpoint(task: str = Query(..., min_length=1)) -> dict:
+    """Recommend the best agent for a task."""
+    from src.orchestrator.agents import get_available_agents
+    from src.orchestrator.selector import recommend_agent
+
+    available = get_available_agents()
+    recommendation = recommend_agent(task, available)
+    return recommendation
+
+
+@app.get("/compare")
+def compare_endpoint(
+    task: str = Query(..., min_length=1),
+    agents: str = Query(None)
+) -> dict:
+    """Compare multiple agents on the same task."""
+    from src.orchestrator.agents import get_available_agents
+    from src.orchestrator.comparator import compare_agents
+
+    # Parse agents parameter
+    if agents:
+        agent_list = [a.strip() for a in agents.split(",") if a.strip()]
+    else:
+        agent_list = get_available_agents()
+
+    if not agent_list:
+        agent_list = ["ollama"]  # Fallback to ollama
+
+    result = compare_agents(task, agent_list, ".")
+    return result
+

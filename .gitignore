@@ -22,4 +22,7 @@ node_modules/
 
 # Virtual environment
 venv/
+
+# Documentation and testing guides (local only)
+docs/testing/
 "@ | Out-File -FilePath .gitignore -Encoding utf8
