@@ -85,3 +85,12 @@ def store_chunks_batch(chunks: list[CodeChunk], embeddings: list[list[float]]) -
 
     if points:
         _client.upsert(collection_name=COLLECTION_NAME, points=points, wait=True)
+
+
+def get_collection_size(collection: str = COLLECTION_NAME) -> int:
+    """Get the number of points in a collection."""
+    try:
+        collection_info = _client.get_collection(collection)
+        return collection_info.points_count
+    except Exception:
+        return 0
