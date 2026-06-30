@@ -22,7 +22,7 @@ def assemble_context_pack(task: str, repo_path: str) -> dict:
     """
 
     # Step 1: Search for relevant chunks
-    chunks = search(query=task, top_k=5)
+    chunks = search(query=task, top_k=5, repo_path=repo_path)
 
     # Step 2: Collect dependencies, ADRs, and git history for each chunk's file
     all_dependencies = []

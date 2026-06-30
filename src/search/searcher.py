@@ -3,33 +3,39 @@ from __future__ import annotations
 from qdrant_client import QdrantClient
 
 from src.embedder.embedder import get_embedding
-from src.storage.qdrant_store import COLLECTION_NAME, QDRANT_URL, setup_collection
+from src.storage.qdrant_store import QDRANT_URL, setup_collection, get_collection_name
 
 
 _client = QdrantClient(url=QDRANT_URL)
 
 
-def _search_points(query_vector: list[float], limit: int):
-    response = _client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        limit=limit,
-        with_payload=True,
-        with_vectors=False,
-    )
-    return response.points
+def _search_points(query_vector: list[float], limit: int, collection_name: str):
+    from src.storage.qdrant_store import _with_retry
+
+    def do_query():
+        response = _client.query_points(
+            collection_name=collection_name,
+            query=query_vector,
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+        return response.points
+
+    return _with_retry(do_query)
 
 
-def search(query: str, top_k: int = 5) -> list[dict]:
+def search(query: str, top_k: int = 5, repo_path: str = ".") -> list[dict]:
     cleaned_query = query.strip()
     if not cleaned_query:
         return []
 
     limit = max(1, top_k)
-    setup_collection()
+    collection_name = get_collection_name(repo_path)
+    setup_collection(collection_name)
 
     query_vector = get_embedding(cleaned_query)
-    points = _search_points(query_vector=query_vector, limit=limit)
+    points = _search_points(query_vector=query_vector, limit=limit, collection_name=collection_name)
 
     results: list[dict] = []
     for point in points:

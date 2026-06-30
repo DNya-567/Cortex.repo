@@ -1,0 +1,36 @@
+{
+  "name": "context-engine",
+  "version": "1.0.0",
+  "description": "AI-native codebase context engine — desktop app wrapper",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.contextengine.app",
+    "productName": "Context Engine",
+    "files": [
+      "main.js",
+      "preload.js",
+      "loading.html",
+      "dashboard_phase13.html",
+      "src/**/*",
+      "venv/**/*",
+      ".env"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

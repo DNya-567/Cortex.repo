@@ -22,7 +22,7 @@ def check_health() -> dict:
         "qdrant": _check_qdrant(),
         "qdrant_collection": _check_qdrant_collection(),
         "sqlite": _check_sqlite(),
-        "overall": "healthy",
+        "overall": "ok",
     }
 
     # Determine overall status
@@ -33,12 +33,18 @@ def check_health() -> dict:
         health["sqlite"]["status"],
     ]
 
-    if all(s == "ok" for s in statuses):
-        health["overall"] = "healthy"
-    elif any(s == "ok" for s in statuses):
+    ok_count = sum(1 for s in statuses if s == "ok")
+    total_count = len(statuses)
+
+    if ok_count == total_count:
+        # All services healthy
+        health["overall"] = "ok"
+    elif ok_count > 0:
+        # Some services healthy, some down
         health["overall"] = "degraded"
     else:
-        health["overall"] = "unhealthy"
+        # All services down
+        health["overall"] = "error"
 
     return health
 

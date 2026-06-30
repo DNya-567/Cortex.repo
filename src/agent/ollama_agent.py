@@ -4,11 +4,14 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from src.context.context_pack import assemble_context_pack
+from src.agent.prompt_builder import pick_instruction
 from src.cache.query_cache import get_cached, store_cache  # ← this was missing
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
 CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL", "mistral")
+
 
 def _make_prompt(pack: dict) -> str:
     p = f"TASK: {pack.get('task', '')}\n\n"
@@ -23,8 +26,11 @@ def _make_prompt(pack: dict) -> str:
         p += f"  {c.get('commit_hash')} {c.get('date')} {c.get('message')}\n"
     p += "\n=== CODE ===\n"
     for chunk in pack.get("chunks", []):
-        p += f"  {chunk.get('chunk_name')} @ {chunk.get('file_path')}\n"
-    p += "\n" + pack.get("instruction", "")
+        p += f"\n--- {chunk.get('chunk_name')} ({chunk.get('file_path')}) ---\n"
+        p += chunk.get("content", "") + "\n"
+
+    instruction = pick_instruction(pack.get('task', ''))
+    p += f"\n\n{instruction}"
     return p
 
 def query_agent(task: str, repo_path: str = ".") -> dict:
@@ -37,11 +43,11 @@ def query_agent(task: str, repo_path: str = ".") -> dict:
     # Cache miss - run full pipeline
     pack = assemble_context_pack(task=task, repo_path=repo_path)
     prompt = _make_prompt(pack)
-    client = httpx.Client(timeout=300.0)
+    client = httpx.Client(timeout=600.0)
     try:
         r = client.post(
             f"{OLLAMA_URL}/api/generate",
-            json={"model": CHAT_MODEL, "prompt": prompt, "stream": False}
+            json={"model": CHAT_MODEL, "prompt": prompt, "stream": False, "options": {"num_predict": 800}}
         )
         r.raise_for_status()
         answer = r.json().get("response", "")

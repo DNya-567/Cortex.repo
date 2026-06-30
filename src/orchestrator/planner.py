@@ -52,33 +52,27 @@ def plan_task(
         for subtask in subtasks:
             subtask["agent"] = forced_agent
     else:
-        # Auto-routing based on task type
+        # Auto-routing based on task type.
+        # Preference order favors fast, reliable cloud agents (Groq) over
+        # slower local inference (Ollama), since Ollama performance varies
+        # heavily by hardware and can bottleneck multi-subtask runs.
         for subtask in subtasks:
             ptype = subtask["prompt_type"]
             default_agent = available_agents[0] if available_agents else "ollama"
 
+            def pick(*preferred):
+                for candidate in preferred:
+                    if candidate in available_agents:
+                        return candidate
+                return default_agent
+
             if ptype == "search":
-                subtask["agent"] = "ollama" if "ollama" in available_agents else default_agent
+                subtask["agent"] = pick("groq", "ollama")
             elif ptype == "explain":
-                subtask["agent"] = "claude" if "claude" in available_agents else (
-                    "ollama" if "ollama" in available_agents else default_agent
-                )
+                subtask["agent"] = pick("groq", "claude", "ollama")
             elif ptype == "improve":
-                if "codex" in available_agents:
-                    subtask["agent"] = "codex"
-                elif "openai" in available_agents:
-                    subtask["agent"] = "openai"
-                else:
-                    subtask["agent"] = "ollama" if "ollama" in available_agents else default_agent
+                subtask["agent"] = pick("groq", "codex", "openai", "ollama")
             elif ptype == "review":
-                if "claude" in available_agents:
-                    subtask["agent"] = "claude"
-                elif "openai" in available_agents:
-                    subtask["agent"] = "openai"
-                else:
-                    subtask["agent"] = "ollama" if "ollama" in available_agents else default_agent
+                subtask["agent"] = pick("groq", "claude", "openai", "ollama")
             else:
-                subtask["agent"] = default_agent
-
-    return subtasks
-
+                subtask["agent"] = pick("groq", default_agent)

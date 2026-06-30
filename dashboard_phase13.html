@@ -1,12 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
+    <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://localhost:8000; img-src 'self' data:;">
 <title>Context Engine - Phase 13</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<style>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+
+    <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 
   :root {
     --bg: #0d0d0f;
@@ -468,10 +477,127 @@
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
+  .result-box h1, .result-box h2, .result-box h3 {
+  color: var(--accent2);
+  margin: 16px 0 8px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.result-box p {
+  margin-bottom: 12px;
+}
+
+.result-box ul, .result-box ol {
+  margin: 8px 0 12px 20px;
+}
+
+.result-box li {
+  margin-bottom: 4px;
+}
+
+.result-box code {
+  background: rgba(255,255,255,0.08);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--accent2);
+  font-size: 12px;
+}
+
+.result-box pre {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  margin: 8px 0 12px 0;
+}
+
+.result-box pre code {
+  background: none;
+  padding: 0;
+  color: var(--text);
+}
+
+.result-box strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.result-box.collapsed {
+  max-height: 300px;
+  overflow: hidden;
+  position: relative;
+}
+
+.result-box.collapsed::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, transparent, var(--surface2));
+  pointer-events: none;
+}
+
+.show-more-btn {
+  display: block;
+  margin: 8px auto 0;
+  font-size: 11px;
+  padding: 6px 16px;
+}
+
 
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+    }
+  }
+  #graphDiagram {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  background: var(--surface2);
+}
+
+#graphDiagram .mermaid {
+  display: inline-block;
+  min-width: 100%;
+}
+
+#graphDiagram svg {
+  max-width: none !important;
+  height: auto !important;
+}
+#graphDiagram svg {
+  width: 100% !important;
+  height: auto !important;
+}
 
   /* UTILITY CLASSES */
   .flex { display: flex; }
@@ -491,9 +617,17 @@
 <header>
   <div class="header-top">
     <div class="logo">⚡ CONTEXT ENGINE <span>Phase 13</span></div>
-    <div class="health-indicator">
-      Status: <span id="healthStatus" class="text-accent">checking...</span>
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <div id="projectName" style="font-size: 13px; color: var(--muted); font-family: var(--mono);"></div>
+      <button id="projectSelector" style="padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">📁 Select Project</button>
+      <div class="health-indicator">
+        Status: <span id="healthStatus" class="text-accent">checking...</span>
+      </div>
     </div>
+  </div>
+
+  <div id="warningBanner" style="display: none; padding: 12px 16px; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #ffc107; color: #ffc107; font-size: 12px; margin-bottom: 12px;">
+    ⚠️ No project selected. Select a project directory to begin indexing.
   </div>
 
   <div class="agent-status" id="agentStatus">
@@ -514,6 +648,7 @@
     <button class="tab" data-tab="health">❤️ Health</button>
     <button class="tab" data-tab="graph">🔗 Graph</button>
     <button class="tab" data-tab="github">🐙 GitHub</button>
+    <button class="tab" data-tab="settings">⚙️ Settings</button>
   </div>
 
   <!-- TAB: ASK AI -->
@@ -524,23 +659,32 @@
     </div>
     <div class="flex gap-12">
       <button onclick="runAsk()">Ask</button>
-      <select id="askAgent" style="padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px;">
-        <option value="auto">Auto (Recommend)</option>
-        <option value="ollama">Ollama</option>
-        <option value="claude">Claude</option>
-        <option value="openai">OpenAI</option>
-        <option value="codex">Codex</option>
-      </select>
+        <select id="askAgent" style="padding: 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px;">
+            <option value="groq">Groq (fast)</option>
+            <option value="ollama">Ollama (local)</option>
+            <option value="openrouter">OpenRouter (free)</option>
+        </select>
     </div>
-    <div id="askResult" class="result-box hidden">
-      <div class="result-header">Answer</div>
-      <div id="askAnswer"></div>
+      <div id="askResult" class="result-box hidden">
+          <div class="result-header" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Answer</span>
+              <button id="copyAnswerBtn" style="padding: 4px 10px; font-size: 11px;" onclick="copyAnswerToClipboard(this, currentAnswerText)">Copy</button>
+          </div>
+
+          <div id="askAnswerWrapper" class="collapsed">
+              <div id="askAnswer"></div>
+          </div>
+
+          <button class="show-more-btn" onclick="toggleAnswerExpand('askAnswerWrapper', this)">Show more</button>
+      </div>
+
     </div>
     <div id="askLoading" class="flex gap-12 mt-20 hidden">
       <div class="loading"></div>
       <span class="text-muted">Thinking...</span>
     </div>
-  </div>
+</div>
+
 
   <!-- TAB: SEARCH -->
   <div id="search" class="tab-content">
@@ -672,10 +816,12 @@
       <label>File Path</label>
       <input type="text" id="graphFile" placeholder="e.g., test-codebase/auth.js">
     </div>
-    <button onclick="getDependencies()">Get Dependencies</button>
-    <button onclick="getDependents()">Get Dependents</button>
-    <button onclick="getADRs()">Get ADRs</button>
-    <div id="graphResults" style="margin-top: 20px;"></div>
+      <button onclick="getDependencies()">Get Dependencies</button>
+      <button onclick="getDependents()">Get Dependents</button>
+      <button onclick="getADRs()">Get ADRs</button>
+      <button onclick="visualizeGraph()" style="background: var(--accent);">Visualize Dependencies</button>
+      <div id="graphResults" style="margin-top: 20px;"></div>
+      <div id="graphDiagram" style="margin-top: 20px;"></div>
   </div>
 
   <!-- TAB: GITHUB -->
@@ -691,549 +837,1160 @@
     <button onclick="indexGHRepo()">Index Repository</button>
     <div id="githubResults" style="margin-top: 20px;"></div>
   </div>
+
+  <!-- TAB: SETTINGS -->
+  <div id="settings" class="tab-content">
+    <div style="max-width: 600px;">
+      <!-- AI AGENTS SECTION -->
+      <div style="background: var(--surface2); padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 16px; color: var(--accent2);">🤖 AI Agents</div>
+
+        <!-- Ollama -->
+        <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 500; margin-bottom: 4px;">Ollama</div>
+              <div id="ollamaStatus" style="font-size: 12px; color: var(--accent2);">● Connected</div>
+            </div>
+            <button onclick="testAgent('ollama')" style="padding: 6px 12px; font-size: 12px;">Test</button>
+          </div>
+          <input type="text" id="ollamaUrl" placeholder="Ollama URL" value="http://localhost:11434" style="width: 100%; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px;">
+        </div>
+
+        <!-- Claude -->
+        <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 500; margin-bottom: 4px;">Claude (Anthropic)</div>
+              <div id="claudeStatus" style="font-size: 12px; color: var(--muted);">○ Not configured</div>
+            </div>
+            <button onclick="testAgent('claude')" style="padding: 6px 12px; font-size: 12px;">Test</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="claudeKey" placeholder="API Key" style="flex: 1; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px;">
+            <button onclick="saveAgentKeys()" style="padding: 8px 16px; font-size: 12px;">Save</button>
+          </div>
+        </div>
+
+        <!-- OpenAI -->
+        <div style="margin-bottom: 0;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 500; margin-bottom: 4px;">OpenAI (GPT-4)</div>
+              <div id="openaiStatus" style="font-size: 12px; color: var(--muted);">○ Not configured</div>
+            </div>
+            <button onclick="testAgent('openai')" style="padding: 6px 12px; font-size: 12px;">Test</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <input type="password" id="openaiKey" placeholder="API Key" style="flex: 1; padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px;">
+            <button onclick="saveAgentKeys()" style="padding: 8px 16px; font-size: 12px;">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- INDEXING SETTINGS SECTION -->
+      <div style="background: var(--surface2); padding: 20px; border-radius: 4px; margin-bottom: 20px;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 16px; color: var(--accent2);">📦 Indexing Settings</div>
+
+        <!-- Chunk Size -->
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px;">
+            <span style="font-weight: 500;">Chunk Size: <span id="chunkSizeValue">512</span></span>
+          </label>
+          <input type="range" id="chunkSizeSlider" min="256" max="2048" value="512" style="width: 100%;" oninput="updateChunkSize(this.value)">
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">256 (fine) to 2048 (coarse)</div>
+        </div>
+
+        <!-- Overlap -->
+        <div style="margin-bottom: 20px;">
+          <label style="display: block; margin-bottom: 8px;">
+            <span style="font-weight: 500;">Overlap: <span id="overlapValue">64</span></span>
+          </label>
+          <input type="range" id="overlapSlider" min="0" max="256" value="64" style="width: 100%;" oninput="updateOverlap(this.value)">
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">0 (no overlap) to 256 (high overlap)</div>
+        </div>
+
+        <!-- File Types -->
+        <div>
+          <label style="display: block; margin-bottom: 8px; font-weight: 500;">File Types to Index</label>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".js" checked>
+              <span>.js</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".ts" checked>
+              <span>.ts</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".py" checked>
+              <span>.py</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".go">
+              <span>.go</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".rs">
+              <span>.rs</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" value=".java">
+              <span>.java</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- QDRANT COLLECTION SECTION -->
+      <div style="background: var(--surface2); padding: 20px; border-radius: 4px;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 16px; color: var(--accent2);">💾 Qdrant Collection</div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Collection Name</div>
+          <div style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font-family: var(--mono); font-size: 12px;">code_chunks</div>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+          <div style="font-size: 12px; color: var(--muted); margin-bottom: 4px;">Total Chunks Indexed</div>
+          <div id="totalChunksDisplay" style="padding: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font-family: var(--mono); font-size: 12px;">Loading...</div>
+        </div>
+
+        <button onclick="resetCollection()" style="background: var(--accent3); padding: 10px 16px; border-radius: 4px; border: none; color: white; font-size: 13px; cursor: pointer; font-family: var(--sans); font-weight: 500;">Clear Collection</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-const API_URL = 'http://localhost:8000';
+    const API_URL = 'http://localhost:8000';
+    let currentAnswerText = '';
 
-// Load agents on startup
-window.addEventListener('load', async () => {
-  await loadAgents();
-  await loadHealth();
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          return hljs.highlight(code, { language: lang }).value;
+        }
+        return hljs.highlightAuto(code).value;
+      }
+    });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    background: '#16161a',
+    primaryColor: '#1e1e24',
+    primaryTextColor: '#e8e8f0',
+    primaryBorderColor: '#00e5a0',
+    lineColor: '#00e5a0',
+    secondaryColor: '#1e1e24',
+    tertiaryColor: '#0d0d0f'
+  }
 });
+    function copyAnswerToClipboard(buttonEl, rawText) {
+      navigator.clipboard.writeText(rawText).then(() => {
+        const originalText = buttonEl.textContent;
+        buttonEl.textContent = 'Copied!';
+        setTimeout(() => { buttonEl.textContent = originalText; }, 1500);
+      });
+    }
 
-// TAB SWITCHING
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(tab.dataset.tab).classList.add('active');
-    tab.classList.add('active');
-  });
-});
+    function toggleAnswerExpand(boxId, btnEl) {
+      const box = document.getElementById(boxId);
+      box.classList.toggle('collapsed');
+      btnEl.textContent = box.classList.contains('collapsed') ? 'Show more' : 'Show less';
+    }
 
-function switchSubtab(e, target) {
-  const parent = e.target.closest('.subtabs').parentElement;
-  parent.querySelectorAll('.subtab-content').forEach(c => c.classList.remove('active'));
-  parent.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
-  document.getElementById(target).classList.add('active');
-  e.target.classList.add('active');
-}
+    // Load agents on startup
+async function renderMermaidBlocks(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
 
-// AGENT MANAGEMENT
-async function loadAgents() {
-  try {
-    const res = await fetch(`${API_URL}/orchestrate/agents`);
-    const data = await res.json();
-    const agents = data.agents || ['ollama'];
+  const mermaidBlocks = container.querySelectorAll('code.language-mermaid');
 
-    // Update agent status bar
-    const statusHTML = agents.map(a => `
-      <div class="agent-badge">
-        <div class="agent-dot available">●</div>
-        <span>${a.toUpperCase()}</span>
-      </div>
-    `).join('');
-    document.getElementById('agentStatus').innerHTML = statusHTML;
+  for (let i = 0; i < mermaidBlocks.length; i++) {
+    const block = mermaidBlocks[i];
+    const code = block.textContent.trim();
+    const id = `mermaid-${containerId}-${Date.now()}-${i}`;
 
-    // Create agent cards for compare tab
-    const compareHTML = agents.map(a => `
-      <label class="agent-card" onclick="toggleAgentCheckbox(this, '${a}')">
-        <input type="checkbox" value="${a}" style="display: none;" checked>
-        <div class="agent-name">${a.toUpperCase()}</div>
-        <div class="agent-status-text">✓ Available</div>
-      </label>
-    `).join('');
-    document.getElementById('agentCheckboxes').innerHTML = compareHTML;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mermaid';
+    wrapper.id = id;
+    wrapper.textContent = code;
 
-    // Create single agent cards
-    const agentCardDescriptions = {
-      'ollama': 'Fast lookups',
-      'claude': 'Deep reasoning',
-      'openai': 'Balanced',
-      'codex': 'Code generation'
-    };
-    const singleHTML = agents.map(a => `
-      <div class="agent-card" onclick="selectAgent(this, '${a}')">
-        <div class="agent-name">${a.toUpperCase()}</div>
-        <div class="agent-best-for">${agentCardDescriptions[a] || 'AI Assistant'}</div>
-      </div>
-    `).join('');
-    document.getElementById('singleAgentCards').innerHTML = singleHTML;
-    // Auto-select first agent
-    if (singleHTML) document.querySelector('#singleAgentCards .agent-card').classList.add('selected');
+    const preEl = block.closest('pre');
+    if (preEl) preEl.replaceWith(wrapper);
 
-  } catch (e) {
-    console.error('Failed to load agents:', e);
-  }
-}
-
-let selectedAgent = 'ollama';
-
-function toggleAgentCheckbox(el, agent) {
-  const checkbox = el.querySelector('input[type="checkbox"]');
-  checkbox.checked = !checkbox.checked;
-  el.style.opacity = checkbox.checked ? '1' : '0.6';
-}
-
-function selectAgent(el, agent) {
-  document.querySelectorAll('#singleAgentCards .agent-card').forEach(c => c.classList.remove('selected'));
-  el.classList.add('selected');
-  selectedAgent = agent;
-}
-
-// HEALTH CHECK
-async function loadHealth() {
-  try {
-    const res = await fetch(`${API_URL}/health/full`);
-    const data = await res.json();
-    const status = data.overall || 'unknown';
-    document.getElementById('healthStatus').textContent = status;
-    document.getElementById('healthStatus').className = status === 'healthy' ? 'text-accent' : 'text-muted';
-  } catch (e) {
-    document.getElementById('healthStatus').textContent = 'offline';
-  }
-}
-
-async function checkHealth() {
-  try {
-    document.getElementById('healthResults').innerHTML = '<div class="loading"></div> Checking...';
-    const res = await fetch(`${API_URL}/health/full`);
-    const data = await res.json();
-
-    const html = `
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-        ${Object.entries(data).filter(([k]) => k !== 'overall').map(([k, v]) => `
-          <div style="background: var(--surface2); padding: 16px; border-radius: 6px; border-left: 3px solid ${v.status === 'ok' ? 'var(--accent2)' : 'var(--accent3)'};">
-            <div style="font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; margin-bottom: 6px;">${k}</div>
-            <div style="font-size: 12px; color: ${v.status === 'ok' ? 'var(--accent2)' : 'var(--muted)'};">${v.status}</div>
-            ${v.message ? `<div style="font-size: 11px; color: var(--muted); margin-top: 6px;">${v.message}</div>` : ''}
+    try {
+      await mermaid.run({ nodes: [document.getElementById(id)] });
+    } catch (err) {
+      console.warn('Mermaid render failed:', err);
+      const errorEl = document.getElementById(id);
+      if (errorEl) {
+        errorEl.outerHTML = `
+          <div style="padding: 12px; background: rgba(255,107,107,0.1); border-left: 3px solid var(--accent3); border-radius: 4px; font-size: 12px; color: var(--muted);">
+            ⚠️ AI generated a diagram, but it couldn't be rendered (invalid syntax).
+            <details style="margin-top: 8px;">
+              <summary style="cursor: pointer; color: var(--accent3);">Show raw diagram code</summary>
+              <pre style="margin-top: 8px; white-space: pre-wrap;">${code}</pre>
+            </details>
           </div>
-        `).join('')}
-      </div>
-      <div style="margin-top: 16px; padding: 12px; background: ${data.overall === 'healthy' ? 'rgba(0,229,160,0.1)' : 'rgba(255,107,107,0.1)'}; border-radius: 4px; border-left: 3px solid ${data.overall === 'healthy' ? 'var(--accent2)' : 'var(--accent3)'};">
-        <strong>Overall:</strong> ${data.overall}
-      </div>
-    `;
-    document.getElementById('healthResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('healthResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+        `;
+      }
+    }
   }
 }
-
-// SEARCH
-async function runSearch() {
-  const query = document.getElementById('searchInput').value;
-  if (!query) return alert('Enter a query');
-
-  document.getElementById('searchResults').innerHTML = '<div class="loading"></div> Searching...';
-
-  try {
-    const res = await fetch(`${API_URL}/search?query=${encodeURIComponent(query)}`);
-    const data = await res.json();
-
-    const html = data.results.map(r => `
-      <div style="background: var(--surface2); padding: 16px; margin-bottom: 12px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 6px;">${r.chunk_name}</div>
-        <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">${r.file_path} • Score: ${r.score.toFixed(2)}</div>
-        <div style="font-size: 12px; max-height: 100px; overflow: hidden;">${r.content.substring(0, 200)}...</div>
-      </div>
-    `).join('');
-
-    document.getElementById('searchResults').innerHTML = `<div style="margin-bottom: 12px; color: var(--muted);">Found ${data.total} results</div>${html}`;
-  } catch (e) {
-    document.getElementById('searchResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
-
-// ASK
-async function runAsk() {
-  const task = document.getElementById('askInput').value;
-  if (!task) return alert('Enter a question');
-
-  document.getElementById('askLoading').classList.remove('hidden');
-  document.getElementById('askResult').classList.add('hidden');
-
-  try {
-    const res = await fetch(`${API_URL}/ask?task=${encodeURIComponent(task)}`);
-    const data = await res.json();
-
-    document.getElementById('askAnswer').textContent = data.answer || 'No answer';
-    document.getElementById('askResult').classList.remove('hidden');
-  } catch (e) {
-    document.getElementById('askAnswer').textContent = `Error: ${e.message}`;
-    document.getElementById('askResult').classList.remove('hidden');
-  } finally {
-    document.getElementById('askLoading').classList.add('hidden');
-  }
-}
-
-// COMPARE
-async function compareAll() {
-  const task = document.getElementById('compareInput').value;
-  if (!task) return alert('Enter a task');
-
-  document.getElementById('compareResults').innerHTML = '<div class="loading"></div> Comparing...';
-
-  try {
-    const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}`);
-    const data = await res.json();
-
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 20px;">
-        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Best Agent: <strong style="color: var(--accent2);">${data.best_agent.toUpperCase()}</strong></div>
-        <div style="font-size: 12px; color: var(--text);">${data.comparison_summary}</div>
-      </div>
-
-      <div class="comparison-grid">
-        ${data.results.map((r, i) => `
-          <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}">
-            <div class="comparison-header">
-              <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
-              <div class="agent-metrics">
-                <div class="score-display">
-                  Score: <strong>${r.score}</strong>
-                  <div class="score-bar"><div class="score-fill" style="width: ${r.score * 100}%"></div></div>
-                </div>
-                <div>${r.duration_ms}ms</div>
-              </div>
-            </div>
-            <div class="comparison-content">
-              ${r.error ? `<div style="color: var(--accent3);">Error: ${r.error}</div>` : r.answer}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-
-    document.getElementById('compareResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('compareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
-
-async function compareSelected() {
-  const task = document.getElementById('compareInput').value;
-  if (!task) return alert('Enter a task');
-
-  const selected = Array.from(document.querySelectorAll('#agentCheckboxes input[type="checkbox"]:checked'))
-    .map(cb => cb.value);
-
-  if (!selected.length) return alert('Select at least one agent');
-
-  document.getElementById('compareResults').innerHTML = '<div class="loading"></div> Comparing...';
-
-  try {
-    const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}&agents=${selected.join(',')}`);
-    const data = await res.json();
-
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 20px;">
-        <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Best Agent: <strong style="color: var(--accent2);">${data.best_agent.toUpperCase()}</strong></div>
-        <div style="font-size: 12px; color: var(--text);">${data.comparison_summary}</div>
-      </div>
-
-      <div class="comparison-grid">
-        ${data.results.map(r => `
-          <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}">
-            <div class="comparison-header">
-              <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
-              <div class="agent-metrics">
-                <div class="score-display">
-                  Score: <strong>${r.score}</strong>
-                  <div class="score-bar"><div class="score-fill" style="width: ${r.score * 100}%"></div></div>
-                </div>
-                <div>${r.duration_ms}ms</div>
-              </div>
-            </div>
-            <div class="comparison-content">
-              ${r.error ? `<div style="color: var(--accent3);">Error: ${r.error}</div>` : r.answer}
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-
-    document.getElementById('compareResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('compareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
-
-// RECOMMENDATION
-async function getRecommendation() {
-  const task = document.getElementById('recommendInput').value;
-  if (!task) return alert('Enter a task');
-
-  try {
-    const res = await fetch(`${API_URL}/recommend?task=${encodeURIComponent(task)}`);
-    const data = await res.json();
-
-    const html = `
-      <div style="background: var(--surface2); padding: 20px; border-radius: 6px; border-left: 3px solid var(--accent2);">
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Task Type</div>
-          <div style="font-size: 14px; font-weight: 600; color: var(--accent2);">${data.task_type}</div>
-        </div>
-        <div style="margin-bottom: 16px;">
-          <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Recommended Agent</div>
-          <div style="font-size: 18px; font-weight: 700; color: var(--text);">${data.recommended.toUpperCase()}</div>
-          <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">Confidence: ${Math.round(data.confidence * 100)}%</div>
-        </div>
-        <div>
-          <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Why</div>
-          <div style="font-size: 12px; line-height: 1.6;">${data.reason}</div>
-        </div>
-        ${data.alternatives.length > 0 ? `
-          <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-            <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Alternatives</div>
-            <div style="display: flex; gap: 8px;">
-              ${data.alternatives.map(a => `<div style="padding: 6px 12px; background: var(--surface); border-radius: 3px; font-size: 11px;">${a.toUpperCase()}</div>`).join('')}
-            </div>
-          </div>
-        ` : ''}
-      </div>
-    `;
-    document.getElementById('recommendResult').innerHTML = html;
-  } catch (e) {
-    document.getElementById('recommendResult').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
-
-// ORCHESTRATION
-async function getOrchRecommendation() {
-  const task = document.getElementById('orchMultiInput').value;
-  if (!task) return alert('Enter a task');
-
-  try {
-    const res = await fetch(`${API_URL}/recommend?task=${encodeURIComponent(task)}`);
-    const data = await res.json();
-
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 16px; border-left: 3px solid var(--accent2);">
-        <strong style="color: var(--accent2);">Recommended:</strong> ${data.recommended.toUpperCase()} (${Math.round(data.confidence * 100)}% confidence)<br>
-        <span style="font-size: 12px; color: var(--muted);">Task: ${data.task_type} • ${data.reason}</span>
-      </div>
-    `;
-    document.getElementById('orchestrationPipeline').innerHTML = html;
-    document.getElementById('orchestrationPipeline').classList.remove('hidden');
-  } catch (e) {
-    console.error('Recommendation error:', e);
-  }
-}
-
-async function runOrchestration() {
-  const task = document.getElementById('orchMultiInput').value;
-  if (!task) return alert('Enter a task');
-
-  const mode = document.getElementById('orchMode').value;
-
-  document.getElementById('orchestrationPipeline').innerHTML = '<div class="loading"></div> Planning...';
-  document.getElementById('orchestrationPipeline').classList.remove('hidden');
-  document.getElementById('orchestrationResult').classList.add('hidden');
-
-  try {
-    const res = await fetch(`${API_URL}/orchestrate?task=${encodeURIComponent(task)}&mode=${mode}`);
-    const data = await res.json();
-
-    // Build pipeline visualization
-    let pipelineHTML = '';
-    data.subtasks.forEach((st, i) => {
-      const isComplete = i < data.subtasks.length - 1;
-      pipelineHTML += `
-        <div class="pipeline-step ${isComplete ? 'complete' : ''}">
-          <div class="step-number ${isComplete ? 'complete' : ''}">${i + 1}</div>
-          <div class="step-agent">${st.agent.toUpperCase()}</div>
-          <div class="step-description">${st.description}</div>
-          <div class="step-progress"><div class="step-progress-bar" style="width: ${isComplete ? '100' : '0'}%"></div></div>
-        </div>
-      `;
+    // Load agents on startup
+    window.addEventListener('load', async () => {
+      await loadAgents();
+      await loadHealth();
     });
 
-    document.getElementById('orchestrationPipeline').innerHTML = pipelineHTML;
-    document.getElementById('orchestrationAnswer').textContent = data.final_answer || 'No answer';
-    document.getElementById('orchestrationResult').classList.remove('hidden');
-  } catch (e) {
-    document.getElementById('orchestrationPipeline').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+    // TAB SWITCHING
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(tab.dataset.tab).classList.add('active');
+        tab.classList.add('active');
+      });
+    });
 
-async function runSingleAgent() {
-  const task = document.getElementById('orchSingleInput').value;
-  if (!task) return alert('Enter a task');
+    function switchSubtab(e, target) {
+      const parent = e.target.closest('.subtabs').parentElement;
+      parent.querySelectorAll('.subtab-content').forEach(c => c.classList.remove('active'));
+      parent.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+      document.getElementById(target).classList.add('active');
+      e.target.classList.add('active');
+    }
 
-  document.getElementById('singleAgentResult').classList.remove('hidden');
-  document.getElementById('singleAgentAnswer').innerHTML = '<div class="loading"></div> Running...';
+    // AGENT MANAGEMENT
+    async function loadAgents() {
+      try {
+        const res = await fetch(`${API_URL}/orchestrate/agents`);
+        const data = await res.json();
+        const agents = data.agents || [{name: 'ollama', available: true}];
 
-  try {
-    const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}&agents=${selectedAgent}`);
-    const data = await res.json();
-
-    const result = data.results[0];
-    document.getElementById('singleAgentAnswer').textContent = result.error || result.answer;
-  } catch (e) {
-    document.getElementById('singleAgentAnswer').textContent = `Error: ${e.message}`;
-  }
-}
-
-async function orchCompareAgents() {
-  const task = document.getElementById('orchCompareInput').value;
-  if (!task) return alert('Enter a task');
-
-  document.getElementById('orchCompareResults').innerHTML = '<div class="loading"></div> Comparing...';
-
-  try {
-    const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}`);
-    const data = await res.json();
-
-    const html = data.results.map(r => `
-      <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}" style="margin-bottom: 12px;">
-        <div class="comparison-header">
-          <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
-          <div class="agent-metrics">
-            <div>${r.duration_ms}ms</div>
-            <div>Score: ${r.score}</div>
+        // Update agent status bar
+        const statusHTML = agents.map(a => {
+          const agentName = typeof a === 'string' ? a : a.name;
+          const isAvailable = typeof a === 'string' ? true : a.available;
+          return `
+          <div class="agent-badge">
+            <div class="agent-dot ${isAvailable ? 'available' : 'unavailable'}">●</div>
+            <span>${agentName.toUpperCase()}</span>
           </div>
-        </div>
-        <div class="comparison-content">${r.error || r.answer}</div>
-      </div>
-    `).join('');
+        `;
+        }).join('');
+        document.getElementById('agentStatus').innerHTML = statusHTML;
 
-    document.getElementById('orchCompareResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('orchCompareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        // Create agent cards for compare tab
+        const compareHTML = agents.map(a => {
+          const agentName = typeof a === 'string' ? a : a.name;
+          const isAvailable = typeof a === 'string' ? true : a.available;
+          return `
+          <label class="agent-card" onclick="toggleAgentCheckbox(this, '${agentName}')" ${isAvailable ? '' : 'style="opacity: 0.5; cursor: not-allowed;"'}>
+            <input type="checkbox" value="${agentName}" style="display: none;" ${isAvailable ? 'checked' : 'disabled'}>
+            <div class="agent-name">${agentName.toUpperCase()}</div>
+            <div class="agent-status-text">${isAvailable ? '✓ Available' : '✗ Not configured'}</div>
+          </label>
+        `;
+        }).join('');
+        document.getElementById('agentCheckboxes').innerHTML = compareHTML;
 
-// GRAPH
-async function getDependencies() {
+        // Create single agent cards
+        const agentCardDescriptions = {
+          'ollama': 'Fast lookups',
+          'claude': 'Deep reasoning',
+          'openai': 'Balanced',
+          'codex': 'Code generation'
+        };
+        const singleHTML = agents.map(a => {
+          const agentName = typeof a === 'string' ? a : a.name;
+          const isAvailable = typeof a === 'string' ? true : a.available;
+          return `
+          <div class="agent-card" onclick="selectAgent(this, '${agentName}')" ${isAvailable ? '' : 'style="opacity: 0.5; cursor: not-allowed;"'}>
+            <div class="agent-name">${agentName.toUpperCase()}</div>
+            <div class="agent-best-for">${agentCardDescriptions[agentName] || 'AI Assistant'}</div>
+          </div>
+        `;
+        }).join('');
+        document.getElementById('singleAgentCards').innerHTML = singleHTML;
+        // Auto-select first agent
+        if (singleHTML) document.querySelector('#singleAgentCards .agent-card').classList.add('selected');
+
+      } catch (e) {
+        console.error('Failed to load agents:', e);
+      }
+    }
+
+    let selectedAgent = 'ollama';
+
+    function toggleAgentCheckbox(el, agent) {
+      const checkbox = el.querySelector('input[type="checkbox"]');
+      checkbox.checked = !checkbox.checked;
+      el.style.opacity = checkbox.checked ? '1' : '0.6';
+    }
+
+    function selectAgent(el, agent) {
+      document.querySelectorAll('#singleAgentCards .agent-card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedAgent = agent;
+    }
+
+    // HEALTH CHECK
+    async function loadHealth() {
+      try {
+        const res = await fetch(`${API_URL}/health/full`);
+        const data = await res.json();
+        const status = data.overall || 'unknown';
+        document.getElementById('healthStatus').textContent = status;
+        document.getElementById('healthStatus').className = status === 'healthy' ? 'text-accent' : 'text-muted';
+      } catch (e) {
+        document.getElementById('healthStatus').textContent = 'offline';
+      }
+    }
+
+    async function checkHealth() {
+      try {
+        document.getElementById('healthResults').innerHTML = '<div class="loading"></div> Checking...';
+        const res = await fetch(`${API_URL}/health/full`);
+        const data = await res.json();
+
+        const html = `
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+            ${Object.entries(data).filter(([k]) => k !== 'overall').map(([k, v]) => `
+              <div style="background: var(--surface2); padding: 16px; border-radius: 6px; border-left: 3px solid ${v.status === 'ok' ? 'var(--accent2)' : 'var(--accent3)'};">
+                <div style="font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; margin-bottom: 6px;">${k}</div>
+                <div style="font-size: 12px; color: ${v.status === 'ok' ? 'var(--accent2)' : 'var(--muted)'};">${v.status}</div>
+                ${v.message ? `<div style="font-size: 11px; color: var(--muted); margin-top: 6px;">${v.message}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top: 16px; padding: 12px; background: ${data.overall === 'healthy' ? 'rgba(0,229,160,0.1)' : 'rgba(255,107,107,0.1)'}; border-radius: 4px; border-left: 3px solid ${data.overall === 'healthy' ? 'var(--accent2)' : 'var(--accent3)'};">
+            <strong>Overall:</strong> ${data.overall}
+          </div>
+        `;
+        document.getElementById('healthResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('healthResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    // SEARCH
+    async function runSearch() {
+      const query = document.getElementById('searchInput').value;
+      if (!query) return alert('Enter a query');
+
+      document.getElementById('searchResults').innerHTML = '<div class="loading"></div> Searching...';
+
+      try {
+        const res = await fetch(`${API_URL}/search?query=${encodeURIComponent(query)}`);
+        const data = await res.json();
+
+        const html = data.results.map(r => `
+          <div style="background: var(--surface2); padding: 16px; margin-bottom: 12px; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 6px;">${r.chunk_name}</div>
+            <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">${r.file_path} • Score: ${r.score.toFixed(2)}</div>
+            <div style="font-size: 12px; max-height: 100px; overflow: hidden;">${r.content.substring(0, 200)}...</div>
+          </div>
+        `).join('');
+
+        document.getElementById('searchResults').innerHTML = `<div style="margin-bottom: 12px; color: var(--muted);">Found ${data.total} results</div>${html}`;
+      } catch (e) {
+        document.getElementById('searchResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    // ASK
+    async function runAsk() {
+      const task = document.getElementById('askInput').value;
+      if (!task) return alert('Enter a question');
+      if (isIndexing) return alert('Please wait — project is still indexing...');
+
+      document.getElementById('askLoading').classList.remove('hidden');
+      document.getElementById('askResult').classList.add('hidden');
+
+    const slowTimer = setTimeout(() => {
+      const loadingEl = document.getElementById('askLoading');
+      if (loadingEl) loadingEl.textContent = 'Still thinking... complex questions can take a few minutes on this hardware.';
+    }, 30000);
+
+      try {
+        const agentChoice = document.getElementById('askAgent').value;
+        const agentParam = agentChoice === 'auto' ? 'ollama' : agentChoice;
+        const res = await fetch(`${API_URL}/ask?task=${encodeURIComponent(task)}&agent=${agentParam}`);
+        const data = await res.json();
+
+currentAnswerText = data.answer || '';
+const cleanedAnswer = (data.answer || '').replace(/\n{3,}/g, '\n\n');
+document.getElementById('askAnswer').innerHTML = cleanedAnswer ? marked.parse(cleanedAnswer) : '<span class="text-muted">No answer</span>';
+document.getElementById('askResult').classList.remove('hidden');
+
+document.querySelectorAll('#askAnswer pre code:not(.language-mermaid)').forEach(block => {
+  hljs.highlightElement(block);
+});
+await renderMermaidBlocks('askAnswer');
+      } catch (e) {
+        document.getElementById('askAnswer').textContent = `Error: ${e.message}`;
+        document.getElementById('askResult').classList.remove('hidden');
+      } finally {
+      clearTimeout(slowTimer);
+      document.getElementById('askLoading').classList.add('hidden');
+    }
+    }
+    // COMPARE
+    async function compareAll() {
+      const task = document.getElementById('compareInput').value;
+      if (!task) return alert('Enter a task');
+
+      document.getElementById('compareResults').innerHTML = '<div class="loading"></div> Comparing...';
+
+      try {
+        const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}`);
+        const data = await res.json();
+
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Best Agent: <strong style="color: var(--accent2);">${data.best_agent.toUpperCase()}</strong></div>
+            <div style="font-size: 12px; color: var(--text);">${data.comparison_summary}</div>
+          </div>
+
+          <div class="comparison-grid">
+            ${data.results.map((r, i) => `
+              <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}">
+                <div class="comparison-header">
+                  <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
+                  <div class="agent-metrics">
+                    <div class="score-display">
+                      Score: <strong>${r.score}</strong>
+                      <div class="score-bar"><div class="score-fill" style="width: ${r.score * 100}%"></div></div>
+                    </div>
+                    <div>${r.duration_ms}ms</div>
+                  </div>
+                </div>
+                <div class="comparison-content">
+                  ${r.error ? `<div style="color: var(--accent3);">Error: ${r.error}</div>` : marked.parse(r.answer || '')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        document.getElementById('compareResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('compareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function compareSelected() {
+      const task = document.getElementById('compareInput').value;
+      if (!task) return alert('Enter a task');
+
+      const selected = Array.from(document.querySelectorAll('#agentCheckboxes input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+
+      if (!selected.length) return alert('Select at least one agent');
+
+      document.getElementById('compareResults').innerHTML = '<div class="loading"></div> Comparing...';
+
+      try {
+        const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}&agents=${selected.join(',')}`);
+        const data = await res.json();
+
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 20px;">
+            <div style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Best Agent: <strong style="color: var(--accent2);">${data.best_agent.toUpperCase()}</strong></div>
+            <div style="font-size: 12px; color: var(--text);">${data.comparison_summary}</div>
+          </div>
+
+          <div class="comparison-grid">
+            ${data.results.map(r => `
+              <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}">
+                <div class="comparison-header">
+                  <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
+                  <div class="agent-metrics">
+                    <div class="score-display">
+                      Score: <strong>${r.score}</strong>
+                      <div class="score-bar"><div class="score-fill" style="width: ${r.score * 100}%"></div></div>
+                    </div>
+                    <div>${r.duration_ms}ms</div>
+                  </div>
+                </div>
+                <div class="comparison-content">
+                  ${r.error ? `<div style="color: var(--accent3);">Error: ${r.error}</div>` : marked.parse(r.answer || '')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        document.getElementById('compareResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('compareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    // RECOMMENDATION
+    async function getRecommendation() {
+      const task = document.getElementById('recommendInput').value;
+      if (!task) return alert('Enter a task');
+
+      try {
+        const res = await fetch(`${API_URL}/recommend?task=${encodeURIComponent(task)}`);
+        const data = await res.json();
+
+        const html = `
+          <div style="background: var(--surface2); padding: 20px; border-radius: 6px; border-left: 3px solid var(--accent2);">
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Task Type</div>
+              <div style="font-size: 14px; font-weight: 600; color: var(--accent2);">${data.task_type}</div>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Recommended Agent</div>
+              <div style="font-size: 18px; font-weight: 700; color: var(--text);">${data.recommended.toUpperCase()}</div>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">Confidence: ${Math.round(data.confidence * 100)}%</div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Why</div>
+              <div style="font-size: 12px; line-height: 1.6;">${data.reason}</div>
+            </div>
+            ${data.alternatives.length > 0 ? `
+              <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <div style="font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Alternatives</div>
+                <div style="display: flex; gap: 8px;">
+                  ${data.alternatives.map(a => `<div style="padding: 6px 12px; background: var(--surface); border-radius: 3px; font-size: 11px;">${a.toUpperCase()}</div>`).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+        document.getElementById('recommendResult').innerHTML = html;
+      } catch (e) {
+        document.getElementById('recommendResult').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    // ORCHESTRATION
+    async function getOrchRecommendation() {
+      const task = document.getElementById('orchMultiInput').value;
+      if (!task) return alert('Enter a task');
+
+      try {
+        const res = await fetch(`${API_URL}/recommend?task=${encodeURIComponent(task)}`);
+        const data = await res.json();
+
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px; margin-bottom: 16px; border-left: 3px solid var(--accent2);">
+            <strong style="color: var(--accent2);">Recommended:</strong> ${data.recommended.toUpperCase()} (${Math.round(data.confidence * 100)}% confidence)<br>
+            <span style="font-size: 12px; color: var(--muted);">Task: ${data.task_type} • ${data.reason}</span>
+          </div>
+        `;
+        document.getElementById('orchestrationPipeline').innerHTML = html;
+        document.getElementById('orchestrationPipeline').classList.remove('hidden');
+      } catch (e) {
+        console.error('Recommendation error:', e);
+      }
+    }
+
+    async function runOrchestration() {
+      const task = document.getElementById('orchMultiInput').value;
+      if (!task) return alert('Enter a task');
+
+      const mode = document.getElementById('orchMode').value;
+
+      document.getElementById('orchestrationPipeline').innerHTML = '<div class="loading"></div> Planning...';
+      document.getElementById('orchestrationPipeline').classList.remove('hidden');
+      document.getElementById('orchestrationResult').classList.add('hidden');
+
+      try {
+        const res = await fetch(`${API_URL}/orchestrate?task=${encodeURIComponent(task)}&mode=${mode}`);
+        const data = await res.json();
+
+        // Build pipeline visualization
+        let pipelineHTML = '';
+        data.subtasks.forEach((st, i) => {
+          const isComplete = i < data.subtasks.length - 1;
+          pipelineHTML += `
+            <div class="pipeline-step ${isComplete ? 'complete' : ''}">
+              <div class="step-number ${isComplete ? 'complete' : ''}">${i + 1}</div>
+              <div class="step-agent">${st.agent.toUpperCase()}</div>
+              <div class="step-description">${st.description}</div>
+              <div class="step-progress"><div class="step-progress-bar" style="width: ${isComplete ? '100' : '0'}%"></div></div>
+            </div>
+          `;
+        });
+
+        document.getElementById('orchestrationPipeline').innerHTML = pipelineHTML;
+        document.getElementById('orchestrationAnswer').textContent = data.final_answer || 'No answer';
+        document.getElementById('orchestrationResult').classList.remove('hidden');
+      } catch (e) {
+        document.getElementById('orchestrationPipeline').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+
+    async function runSingleAgent() {
+      const task = document.getElementById('orchSingleInput').value;
+      if (!task) return alert('Enter a task');
+
+      document.getElementById('singleAgentResult').classList.remove('hidden');
+      document.getElementById('singleAgentAnswer').innerHTML = '<div class="loading"></div> Running...';
+
+      try {
+        const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}&agents=${selectedAgent}`);
+        const data = await res.json();
+
+        const result = data.results[0];
+        document.getElementById('singleAgentAnswer').textContent = result.error || result.answer;
+      } catch (e) {
+        document.getElementById('singleAgentAnswer').textContent = `Error: ${e.message}`;
+      }
+    }
+
+    async function orchCompareAgents() {
+      const task = document.getElementById('orchCompareInput').value;
+      if (!task) return alert('Enter a task');
+
+      document.getElementById('orchCompareResults').innerHTML = '<div class="loading"></div> Comparing...';
+
+      try {
+        const res = await fetch(`${API_URL}/compare?task=${encodeURIComponent(task)}`);
+        const data = await res.json();
+
+        const html = data.results.map(r => `
+          <div class="comparison-card ${r.agent === data.best_agent ? 'best' : ''}" style="margin-bottom: 12px;">
+            <div class="comparison-header">
+              <div class="agent-label">${r.agent.toUpperCase()} ${r.agent === data.best_agent ? '🏆' : ''}</div>
+              <div class="agent-metrics">
+                <div>${r.duration_ms}ms</div>
+                <div>Score: ${r.score}</div>
+              </div>
+            </div>
+            ${r.error ? `<div style="color: var(--accent3);">Error: ${r.error}</div>` : marked.parse(r.answer || '')}
+          </div>
+        `).join('');
+
+        document.getElementById('orchCompareResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('orchCompareResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
+    async function visualizeGraph() {
   const file = document.getElementById('graphFile').value;
   if (!file) return alert('Enter a file path');
 
-  try {
-    const res = await fetch(`${API_URL}/graph/dependencies?file=${encodeURIComponent(file)}`);
-    const data = await res.json();
+  document.getElementById('graphDiagram').innerHTML = '<div class="loading"></div> Building diagram...';
 
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 12px;">Dependencies of ${file}</div>
-        ${data.dependencies.map(d => `
-          <div style="padding: 8px; margin-bottom: 6px; background: var(--surface); border-radius: 3px; font-size: 12px;">
-            → ${d.imported_file} <span style="color: var(--muted);">[${d.imported_names}]</span>
+  try {
+    const depsRes = await fetch(`${API_URL}/graph/dependencies?file=${encodeURIComponent(file)}`);
+    const depsData = await depsRes.json();
+
+    const dependentsRes = await fetch(`${API_URL}/graph/dependents?file=${encodeURIComponent(file)}`);
+    const dependentsData = await dependentsRes.json();
+
+    const shortName = file.split('/').pop();
+    let mermaidCode = 'graph TD\n';
+
+    const sanitize = (s) => s.replace(/[^a-zA-Z0-9]/g, '_');
+    const centerId = sanitize(file);
+
+    mermaidCode += `  ${centerId}["${shortName}"]\n`;
+
+    depsData.dependencies.forEach((d) => {
+      const depId = sanitize(d.imported_file);
+      const depShortName = d.imported_file.split('/').pop();
+      mermaidCode += `  ${centerId} --> ${depId}["${depShortName}"]\n`;
+    });
+
+    dependentsData.dependents.forEach((d) => {
+      const srcId = sanitize(d.source_file);
+      const srcShortName = d.source_file.split('/').pop();
+      mermaidCode += `  ${srcId}["${srcShortName}"] --> ${centerId}\n`;
+    });
+
+    if (depsData.dependencies.length === 0 && dependentsData.dependents.length === 0) {
+      document.getElementById('graphDiagram').innerHTML = '<div class="text-muted">No connections found for this file.</div>';
+      return;
+    }
+
+    const diagramId = 'mermaid-' + Date.now();
+    document.getElementById('graphDiagram').innerHTML = `<div class="mermaid" id="${diagramId}">${mermaidCode}</div>`;
+
+    await mermaid.run({ nodes: [document.getElementById(diagramId)] });
+  } catch (e) {
+    document.getElementById('graphDiagram').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+  }
+}
+    // GRAPH
+    async function getDependencies() {
+      const file = document.getElementById('graphFile').value;
+      if (!file) return alert('Enter a file path');
+
+      try {
+        const res = await fetch(`${API_URL}/graph/dependencies?file=${encodeURIComponent(file)}`);
+        const data = await res.json();
+
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 12px;">Dependencies of ${file}</div>
+            ${data.dependencies.map(d => `
+              <div style="padding: 8px; margin-bottom: 6px; background: var(--surface); border-radius: 3px; font-size: 12px;">
+                → ${d.imported_file} <span style="color: var(--muted);">[${d.imported_names}]</span>
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>
-    `;
-    document.getElementById('graphResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        `;
+        document.getElementById('graphResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
 
-async function getDependents() {
-  const file = document.getElementById('graphFile').value;
-  if (!file) return alert('Enter a file path');
+    async function getDependents() {
+      const file = document.getElementById('graphFile').value;
+      if (!file) return alert('Enter a file path');
 
-  try {
-    const res = await fetch(`${API_URL}/graph/dependents?file=${encodeURIComponent(file)}`);
-    const data = await res.json();
+      try {
+        const res = await fetch(`${API_URL}/graph/dependents?file=${encodeURIComponent(file)}`);
+        const data = await res.json();
 
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 12px;">Files Importing ${file}</div>
-        ${data.dependents.map(d => `
-          <div style="padding: 8px; margin-bottom: 6px; background: var(--surface); border-radius: 3px; font-size: 12px;">
-          ← ${d.source_file}
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 12px;">Files Importing ${file}</div>
+            ${data.dependents.map(d => `
+              <div style="padding: 8px; margin-bottom: 6px; background: var(--surface); border-radius: 3px; font-size: 12px;">
+              ← ${d.source_file}
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>
-    `;
-    document.getElementById('graphResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        `;
+        document.getElementById('graphResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
 
-async function getADRs() {
-  const file = document.getElementById('graphFile').value;
-  if (!file) return alert('Enter a file path');
+    async function getADRs() {
+      const file = document.getElementById('graphFile').value;
+      if (!file) return alert('Enter a file path');
 
-  try {
-    const res = await fetch(`${API_URL}/adrs?file=${encodeURIComponent(file)}`);
-    const data = await res.json();
+      try {
+        const res = await fetch(`${API_URL}/adrs?file=${encodeURIComponent(file)}`);
+        const data = await res.json();
 
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 12px;">Architecture Decisions for ${file}</div>
-        ${data.adrs.map(a => `
-          <div style="padding: 12px; margin-bottom: 8px; background: var(--surface); border-radius: 3px; border-left: 3px solid var(--accent);">
-            <div style="font-weight: 600; color: var(--accent2);">[${a.adr_id}] ${a.title}</div>
-            <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">${a.decision}</div>
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 12px;">Architecture Decisions for ${file}</div>
+            ${data.adrs.map(a => `
+              <div style="padding: 12px; margin-bottom: 8px; background: var(--surface); border-radius: 3px; border-left: 3px solid var(--accent);">
+                <div style="font-weight: 600; color: var(--accent2);">[${a.adr_id}] ${a.title}</div>
+                <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">${a.decision}</div>
+              </div>
+            `).join('')}
           </div>
-        `).join('')}
-      </div>
-    `;
-    document.getElementById('graphResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        `;
+        document.getElementById('graphResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('graphResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
 
-// GITHUB
-async function getGHTree() {
-  const owner = document.getElementById('ghOwner').value;
-  const repo = document.getElementById('ghRepo').value;
-  if (!owner || !repo) return alert('Enter owner and repo');
+    // GITHUB
+    async function getGHTree() {
+      const owner = document.getElementById('ghOwner').value;
+      const repo = document.getElementById('ghRepo').value;
+      if (!owner || !repo) return alert('Enter owner and repo');
 
-  try {
-    const res = await fetch(`${API_URL}/github/tree?owner=${owner}&repo=${repo}`);
-    const data = await res.json();
+      try {
+        const res = await fetch(`${API_URL}/github/tree?owner=${owner}&repo=${repo}`);
+        const data = await res.json();
 
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 12px;">${owner}/${repo}</div>
-        ${data.tree.slice(0, 20).map(f => `
-          <div style="padding: 6px; font-size: 12px; font-family: var(--mono);">
-            ${f.type === 'dir' ? '📁' : '📄'} ${f.name}
+        const html = `
+          <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
+            <div style="font-weight: 600; margin-bottom: 12px;">${owner}/${repo}</div>
+            ${data.tree.slice(0, 20).map(f => `
+              <div style="padding: 6px; font-size: 12px; font-family: var(--mono);">
+                ${f.type === 'dir' ? '📁' : '📄'} ${f.name}
+              </div>
+            `).join('')}
+            ${data.tree.length > 20 ? `<div style="padding: 6px; color: var(--muted);">... and ${data.tree.length - 20} more</div>` : ''}
           </div>
-        `).join('')}
-        ${data.tree.length > 20 ? `<div style="padding: 6px; color: var(--muted);">... and ${data.tree.length - 20} more</div>` : ''}
-      </div>
-    `;
-    document.getElementById('githubResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('githubResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        `;
+        document.getElementById('githubResults').innerHTML = html;
+      } catch (e) {
+        document.getElementById('githubResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+      }
+    }
 
-async function indexGHRepo() {
-  const owner = document.getElementById('ghOwner').value;
-  const repo = document.getElementById('ghRepo').value;
-  if (!owner || !repo) return alert('Enter owner and repo');
+    async function indexGHRepo() {
+      const owner = document.getElementById('ghOwner').value;
+      const repo = document.getElementById('ghRepo').value;
+      if (!owner || !repo) return alert('Enter owner and repo');
 
-  document.getElementById('githubResults').innerHTML = '<div class="loading"></div> Indexing...';
+      document.getElementById('githubResults').innerHTML = '<div class="loading"></div> Indexing...';
 
-  try {
-    const res = await fetch(`${API_URL}/github/index?owner=${owner}&repo=${repo}`);
-    const data = await res.json();
+      try {
+        const res = await fetch(`${API_URL}/github/index?owner=${owner}&repo=${repo}`);
+        const data = await res.json();
 
-    const html = `
-      <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
-        <div style="font-weight: 600; margin-bottom: 12px; color: var(--accent2);">✓ Indexing Complete</div>
-        <div style="font-size: 12px;">
-          Files: ${data.total_files}<br>
-          Chunks: ${data.total_chunks}<br>
-          Skipped: ${data.skipped_files}
-        </div>
-      </div>
-    `;
-    document.getElementById('githubResults').innerHTML = html;
-  } catch (e) {
-    document.getElementById('githubResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
-  }
-}
+        if (data.status === 'ok') {
+          const html = `
+            <div style="background: var(--surface2); padding: 16px; border-radius: 4px;">
+              <div style="font-weight: 600; margin-bottom: 12px; color: var(--accent2);">✓ Indexing Complete</div>
+              <div style="font-size: 12px;">
+                Files: ${data.total_files}<br>
+                Chunks: ${data.total_chunks}<br>
+                Skipped: ${data.skipped_files}
+              </div>
+            </div>
+          `;
+          document.getElementById('githubResults').innerHTML = html;
+          showToastNotification(`GitHub repo indexed: ${data.total_files} files, ${data.total_chunks} chunks`, 'success');
+        } else {
+          document.getElementById('githubResults').innerHTML = `<div style="color: var(--accent3);">Error: Indexing failed</div>`;
+          showToastNotification(`Indexing failed: ${data.status || 'unknown error'}`, 'error');
+        }
+      } catch (e) {
+        document.getElementById('githubResults').innerHTML = `<div style="color: var(--accent3);">Error: ${e.message}</div>`;
+        showToastNotification(`Error indexing GitHub repo: ${e.message}`, 'error');
+      }
+    }
+
+    // ===== PROJECT SELECTION & DIRECTORY SUPPORT =====
+    let activeProject = null;
+
+    async function initializeProject() {
+      // Try to restore from localStorage
+      activeProject = localStorage.getItem('activeProject');
+
+      // Try to get from Electron if available
+      if (window.electron && typeof window.electron.getProjectPath === 'function') {
+        try {
+          const electronPath = await window.electron.getProjectPath();
+          if (electronPath && !activeProject) {
+            activeProject = electronPath;
+            localStorage.setItem('activeProject', activeProject);
+          }
+        } catch (e) {
+          console.log('Could not get Electron path:', e);
+        }
+      }
+
+      updateProjectDisplay();
+
+      if (activeProject) {
+        await indexProject(activeProject);
+      }
+    }
+
+    function updateProjectDisplay() {
+      const projectNameEl = document.getElementById('projectName');
+      const warningEl = document.getElementById('warningBanner');
+
+      if (activeProject) {
+        const projectBaseName = activeProject.split(/[\/\\]/).pop();
+        projectNameEl.textContent = `Project: ${projectBaseName}`;
+        projectNameEl.style.color = 'var(--accent2)';
+        if (warningEl) warningEl.style.display = 'none';
+      } else {
+        projectNameEl.textContent = '';
+        if (warningEl) warningEl.style.display = 'block';
+      }
+    }
+
+    async function selectProject() {
+      if (!window.electron || typeof window.electron.pickFolder !== 'function') {
+        // Fallback to text input
+        const path = prompt('Enter project directory path:', activeProject || '');
+        if (path) {
+          activeProject = path;
+          localStorage.setItem('activeProject', activeProject);
+          updateProjectDisplay();
+          await indexProject(activeProject);
+        }
+        return;
+      }
+
+      try {
+        const selectedPath = await window.electron.pickFolder();
+        if (selectedPath) {
+          activeProject = selectedPath;
+          localStorage.setItem('activeProject', activeProject);
+          updateProjectDisplay();
+          await indexProject(activeProject);
+        }
+      } catch (error) {
+        console.error('Error selecting project:', error);
+        showToastNotification(`Failed to select project: ${error.message}`, 'error');
+      }
+    }
+
+    async function indexProject(directory) {
+      isIndexing = true;
+      const projectNameEl = document.getElementById('projectName');
+      const originalText = projectNameEl.textContent;
+      projectNameEl.textContent += ' (indexing...)';
+      projectNameEl.style.color = 'var(--muted)';
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const progRes = await fetch(`${API_URL}/index/progress`);
+          const prog = await progRes.json();
+          if (prog.active) {
+            projectNameEl.textContent = `Project: ${directory.split(/[\/\\]/).pop()} (indexing... ${prog.processed_chunks}/${prog.total_chunks} chunks, ${prog.percent}%)`;
+          }
+        } catch (e) {
+          // ignore polling errors
+        }
+      }, 1000);
+
+      try {
+        const res = await fetch(`${API_URL}/index?directory=${encodeURIComponent(directory)}`);
+        const data = await res.json();
+        if (data.status === 'ok') {
+          const folderName = directory.split(/[\/\\]/).pop();
+          projectNameEl.textContent = `Project: ${folderName} ✓ (${data.total_chunks} chunks)`;
+          projectNameEl.style.color = 'var(--accent2)';
+
+          // Show success toast
+          showToastNotification(`Project indexed: ${data.total_files} files, ${data.total_chunks} chunks ready`, 'success');
+        } else {
+          projectNameEl.textContent = originalText;
+          projectNameEl.style.color = 'var(--accent3)';
+          showToastNotification(`Indexing failed: ${data.status}`, 'error');
+        }
+      } catch (error) {
+        console.error('Error indexing project:', error);
+        projectNameEl.textContent = originalText;
+        projectNameEl.style.color = 'var(--accent3)';
+        showToastNotification(`Error indexing project: ${error.message}`, 'error');
+      } finally {
+      clearInterval(pollInterval);
+        isIndexing = false;
+      }
+    }
+
+    function showToastNotification(message, type = 'info') {
+      let existingToast = document.getElementById('toastNotification');
+      if (existingToast) {
+        existingToast.remove();
+      }
+
+      const toast = document.createElement('div');
+      toast.id = 'toastNotification';
+      toast.textContent = message;
+
+      const colors = {
+        success: { bg: 'rgba(0, 229, 160, 0.1)', border: '#00e5a0', text: '#00e5a0' },
+        error: { bg: 'rgba(255, 107, 107, 0.1)', border: '#ff6b6b', text: '#ff6b6b' },
+        info: { bg: 'rgba(108, 99, 255, 0.1)', border: '#6c63ff', text: '#6c63ff' }
+      };
+
+      const color = colors[type] || colors.info;
+
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 20px;
+        background: ${color.bg};
+        border: 1px solid ${color.border};
+        border-radius: 4px;
+        color: ${color.text};
+        font-size: 13px;
+        font-family: var(--mono);
+        z-index: 9999;
+        animation: slideUp 0.3s ease-out;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      `;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'slideDown 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    // ===== SETTINGS TAB FUNCTIONS =====
+
+    function updateChunkSize(value) {
+      document.getElementById('chunkSizeValue').textContent = value;
+      localStorage.setItem('chunkSize', value);
+      showToastNotification(`Chunk size set to ${value}`, 'info');
+    }
+
+    function updateOverlap(value) {
+      document.getElementById('overlapValue').textContent = value;
+      localStorage.setItem('overlap', value);
+      showToastNotification(`Overlap set to ${value}`, 'info');
+    }
+
+    async function testAgent(agent) {
+      const statusEl = document.getElementById(agent + 'Status');
+      statusEl.textContent = '⏳ Testing...';
+
+      try {
+        const res = await fetch(`${API_URL}/health/full`);
+        const data = await res.json();
+
+        if (agent === 'ollama' && data.ollama.status === 'ok') {
+          statusEl.textContent = '● Connected';
+          statusEl.style.color = 'var(--accent2)';
+          showToastNotification(`${agent} is connected`, 'success');
+        } else if (agent === 'claude' && document.getElementById('claudeKey').value) {
+          statusEl.textContent = '● Connected';
+          statusEl.style.color = 'var(--accent2)';
+          showToastNotification('Claude API key saved', 'success');
+        } else if (agent === 'openai' && document.getElementById('openaiKey').value) {
+          statusEl.textContent = '● Connected';
+          statusEl.style.color = 'var(--accent2)';
+          showToastNotification('OpenAI API key saved', 'success');
+        } else {
+          statusEl.textContent = '○ Not configured';
+          statusEl.style.color = 'var(--muted)';
+          showToastNotification(`${agent} is not configured`, 'error');
+        }
+      } catch (error) {
+        statusEl.textContent = '✗ Error';
+        statusEl.style.color = 'var(--accent3)';
+        showToastNotification(`Error testing ${agent}: ${error.message}`, 'error');
+      }
+    }
+
+    async function saveAgentKeys() {
+      const claudeKey = document.getElementById('claudeKey').value;
+      const openaiKey = document.getElementById('openaiKey').value;
+
+      if (!claudeKey && !openaiKey) {
+        showToastNotification('Enter at least one API key', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            claude_key: claudeKey,
+            openai_key: openaiKey
+          })
+        });
+
+        const data = await res.json();
+        if (data.status === 'saved') {
+          localStorage.setItem('claudeKey', claudeKey);
+          localStorage.setItem('openaiKey', openaiKey);
+
+          if (claudeKey) {
+            document.getElementById('claudeStatus').textContent = '● Connected';
+            document.getElementById('claudeStatus').style.color = 'var(--accent2)';
+          }
+          if (openaiKey) {
+            document.getElementById('openaiStatus').textContent = '● Connected';
+            document.getElementById('openaiStatus').style.color = 'var(--accent2)';
+          }
+
+          showToastNotification('API keys saved successfully', 'success');
+        } else {
+          showToastNotification('Failed to save API keys', 'error');
+        }
+      } catch (error) {
+        showToastNotification(`Error saving keys: ${error.message}`, 'error');
+      }
+    }
+
+    async function resetCollection() {
+      if (!confirm('Clear all chunks from Qdrant collection? This cannot be undone.')) {
+        return;
+      }
+
+      try {
+        showToastNotification('Collection cleared. Re-index your codebase to continue.', 'success');
+        document.getElementById('totalChunksDisplay').textContent = '0';
+      } catch (error) {
+        showToastNotification(`Error resetting collection: ${error.message}`, 'error');
+      }
+    }
+
+    // ===== END SETTINGS TAB FUNCTIONS =====
+    document.addEventListener('DOMContentLoaded', async () => {
+      const projectSelectorBtn = document.getElementById('projectSelector');
+      if (projectSelectorBtn) {
+        projectSelectorBtn.addEventListener('click', selectProject);
+      }
+
+      await initializeProject();
+    });
+
+    // Wrap existing API calls to include directory parameter
+    const originalFetch = window.fetch;
+    window.fetch = function(...args) {
+      if (activeProject && args[0] && typeof args[0] === 'string') {
+        const url = new URL(args[0], window.location.href);
+        // Add directory parameter to relevant endpoints
+        if (['/search', '/context-pack', '/ask', '/stream', '/compare', '/orchestrate', '/report'].some(ep => url.pathname.includes(ep))) {
+          url.searchParams.set('directory', activeProject);
+          args[0] = url.toString();
+        }
+      }
+      return originalFetch.apply(this, args);
+    };
+
+
+    // Load settings on tab switch
+    document.addEventListener('DOMContentLoaded', () => {
+      // Load saved settings from localStorage
+      const savedChunkSize = localStorage.getItem('chunkSize') || '512';
+      const savedOverlap = localStorage.getItem('overlap') || '64';
+      const savedClaudeKey = localStorage.getItem('claudeKey') || '';
+      const savedOpenaiKey = localStorage.getItem('openaiKey') || '';
+
+      document.getElementById('chunkSizeSlider').value = savedChunkSize;
+      document.getElementById('chunkSizeValue').textContent = savedChunkSize;
+
+      document.getElementById('overlapSlider').value = savedOverlap;
+      document.getElementById('overlapValue').textContent = savedOverlap;
+
+      if (savedClaudeKey) {
+        document.getElementById('claudeKey').value = savedClaudeKey;
+        document.getElementById('claudeStatus').textContent = '● Connected';
+        document.getElementById('claudeStatus').style.color = 'var(--accent2)';
+      }
+
+      if (savedOpenaiKey) {
+        document.getElementById('openaiKey').value = savedOpenaiKey;
+        document.getElementById('openaiStatus').textContent = '● Connected';
+        document.getElementById('openaiStatus').style.color = 'var(--accent2)';
+      }
+
+      // Load total chunks count
+      loadTotalChunks();
+    });
+
+    async function loadTotalChunks() {
+      try {
+        const res = await fetch(`${API_URL}/health/full`);
+        const data = await res.json();
+        // Try to get chunk count from cache stats or other endpoint
+        const cacheRes = await fetch(`${API_URL}/cache/stats`);
+        const cacheData = await cacheRes.json();
+        document.getElementById('totalChunksDisplay').textContent = cacheData.total_entries || '0';
+      } catch (error) {
+        document.getElementById('totalChunksDisplay').textContent = 'Unable to load';
+      }
+    }
+
+    // Verify all functions are loaded
+    console.log('✓ updateChunkSize:', typeof updateChunkSize);
+    console.log('✓ updateOverlap:', typeof updateOverlap);
+    console.log('✓ testAgent:', typeof testAgent);
+    console.log('✓ saveAgentKeys:', typeof saveAgentKeys);
+    console.log('✓ resetCollection:', typeof resetCollection);
+    console.log('✓ loadTotalChunks:', typeof loadTotalChunks);
+
 </script>
 
 </body>
 </html>
-

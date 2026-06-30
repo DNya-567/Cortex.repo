@@ -121,6 +121,11 @@ def chunk_file(file_path: str | Path) -> list[CodeChunk]:
     if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
         return []
 
+    # Skip minified/bundled files — not real source code
+    name_lower = path.name.lower()
+    if ".min." in name_lower or name_lower.endswith((".bundle.js", "-bundle.js")):
+        return []
+
     source = path.read_bytes()
     tree = _PARSER.parse(source)
 
@@ -137,14 +142,15 @@ def chunk_directory(directory: str | Path) -> list[CodeChunk]:
     chunks: list[CodeChunk] = []
     stack = [root]
 
+    SKIP_DIRS = {"node_modules", ".git", "venv", "__pycache__", "dist", "build", ".next", "out", "coverage", ".cache", "libs", "vendor", "lib"}
     while stack:
         current = stack.pop()
-        if current.name == "node_modules":
+        if current.name in SKIP_DIRS:
             continue
 
         for entry in current.iterdir():
             if entry.is_dir():
-                if entry.name != "node_modules":
+                if entry.name not in SKIP_DIRS:
                     stack.append(entry)
                 continue
 
@@ -185,7 +191,7 @@ def chunk_directory_any(directory: str) -> list[CodeChunk]:
         ".cpp", ".cc", ".cxx", ".cs", ".rb",
         ".php", ".kt", ".swift"
     }
-    skip_dirs = {"node_modules", ".git", "venv", "__pycache__"}
+    skip_dirs = {"node_modules", ".git", "venv", "__pycache__", "dist", "build", ".next", "out", "coverage", ".cache"}
     all_chunks = []
 
     for fp in Path(directory).rglob("*"):

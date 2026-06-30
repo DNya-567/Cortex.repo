@@ -1,4 +1,4 @@
-"""Unified interface for multiple AI agents (Ollama, Claude, OpenAI, Codex)."""
+"""Unified interface for multiple AI agents (Ollama, Claude, OpenAI, Groq, OpenRouter, Codex)."""
 
 import httpx
 import json
@@ -7,6 +7,14 @@ import time
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Load environment variables
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_CHAT_MODEL = os.getenv("OLLAMA_CHAT_MODEL", "llama3.2")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 
 def get_available_agents() -> list[str]:
@@ -19,20 +27,28 @@ def get_available_agents() -> list[str]:
     # Check Ollama
     try:
         with httpx.Client(timeout=5.0) as client:
-            r = client.get(os.getenv("OLLAMA_URL", "http://localhost:11434"))
+            r = client.get(OLLAMA_URL)
             if r.status_code == 200:
                 available.append("ollama")
     except Exception:
         pass
 
     # Check Claude
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if ANTHROPIC_API_KEY:
         available.append("claude")
 
     # Check OpenAI
-    if os.getenv("OPENAI_API_KEY"):
+    if OPENAI_API_KEY:
         available.append("openai")
         available.append("codex")
+
+    # Check Groq
+    if GROQ_API_KEY:
+        available.append("groq")
+
+    # Check OpenRouter
+    if OPENROUTER_API_KEY:
+        available.append("openrouter")
 
     return available
 
@@ -52,6 +68,10 @@ def run_agent(agent: str, prompt: str, max_tokens: int = 1000) -> dict:
         result = _run_openai(prompt, max_tokens)
     elif agent == "codex":
         result = _run_codex(prompt, max_tokens)
+    elif agent == "groq":
+        result = _run_groq(prompt, max_tokens)
+    elif agent == "openrouter":
+        result = _run_openrouter(prompt, max_tokens)
     else:
         result = {
             "agent": agent,
@@ -188,4 +208,100 @@ def _run_codex(prompt: str, max_tokens: int) -> dict:
 and provide precise, technical answers. Focus on implementation details,
 patterns, and potential issues."""
     return _run_openai(prompt, max_tokens, system=system)
+
+
+def _run_groq(prompt: str, max_tokens: int) -> dict:
+    """Run Groq model via Groq API (OpenAI-compatible format)."""
+    try:
+        if not GROQ_API_KEY:
+            return {
+                "agent": "groq",
+                "answer": "",
+                "tokens_used": 0,
+                "duration_ms": 0,
+                "error": "API key not configured",
+            }
+
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "max_tokens": max_tokens,
+                    "messages": [
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            answer = data["choices"][0]["message"]["content"]
+            tokens_used = data.get("usage", {}).get("total_tokens", 0)
+            return {
+                "agent": "groq",
+                "answer": answer,
+                "tokens_used": tokens_used,
+                "duration_ms": 0,
+                "error": None,
+            }
+    except Exception as e:
+        return {
+            "agent": "groq",
+            "answer": "",
+            "tokens_used": 0,
+            "duration_ms": 0,
+            "error": str(e),
+        }
+
+
+def _run_openrouter(prompt: str, max_tokens: int) -> dict:
+    """Run OpenRouter model via OpenRouter API (OpenAI-compatible format)."""
+    try:
+        if not OPENROUTER_API_KEY:
+            return {
+                "agent": "openrouter",
+                "answer": "",
+                "tokens_used": 0,
+                "duration_ms": 0,
+                "error": "API key not configured",
+            }
+
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "HTTP-Referer": "http://localhost:8000",
+                    "X-Title": "Context Engine",
+                },
+                json={
+                    "model": "openrouter/free",
+                    "max_tokens": max(max_tokens, 2000),
+                    "messages": [
+                        {"role": "user", "content": prompt},
+                    ],
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            message = data["choices"][0]["message"]
+            answer = message.get("content") or message.get("reasoning") or ""
+            tokens_used = data.get("usage", {}).get("total_tokens", 0)
+            return {
+                "agent": "openrouter",
+                "answer": answer,
+                "tokens_used": tokens_used,
+                "duration_ms": 0,
+                "error": None,
+            }
+    except Exception as e:
+        return {
+            "agent": "openrouter",
+            "answer": "",
+            "tokens_used": 0,
+            "duration_ms": 0,
+            "error": str(e),
+        }
+
 
