@@ -87,12 +87,24 @@ def compare_agents(task: str,
     except Exception as e:
         context_pack = {"task": task, "chunks": [], "error": str(e)}
 
+    # Build a shared prompt with code context for all agents
+    chunks_text = ""
+    for chunk in context_pack.get("chunks", []):
+        chunks_text += f"\n--- {chunk.get('chunk_name')} ({chunk.get('file_path')}) ---\n"
+        chunks_text += chunk.get("content", "") + "\n"
+
+    shared_prompt = f"""TASK: {task}
+
+=== RELEVANT CODE FROM CODEBASE ===
+{chunks_text}
+
+You are a code analysis expert. Based ONLY on the code above, answer the task. Reference specific function names and code lines. Do not guess."""
+
     results = []
 
     # Run each agent
     for agent in agents:
-        agent_result = run_agent(agent, task, max_tokens=1000)
-
+        agent_result = run_agent(agent, shared_prompt, max_tokens=1000)
         # Score the answer
         answer = agent_result.get("answer", "")
         agent_score = score_answer(answer)

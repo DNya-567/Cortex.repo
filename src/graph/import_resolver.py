@@ -182,7 +182,9 @@ def build_graph(directory: str) -> None:
 def get_dependencies(file_path: str) -> list[dict]:
     """
     Get all files that `file_path` imports (upstream dependencies).
-    Pass the project-root-relative path, e.g. "test-codebase/auth.js".
+    Accepts either the full stored path (e.g. "chat-client/src/auth.js")
+    or just the path relative to the indexed folder (e.g. "src/auth.js") —
+    matches by suffix so both forms work.
     """
     _init_db()
     file_path = _normalize_path(file_path)
@@ -193,9 +195,9 @@ def get_dependencies(file_path: str) -> list[dict]:
             """
             SELECT imported_file, imported_names
             FROM dependencies
-            WHERE source_file = ?
+            WHERE source_file = ? OR source_file LIKE ?
             """,
-            (file_path,),
+            (file_path, f"%/{file_path}"),
         )
         rows = cursor.fetchall()
         return [
@@ -207,7 +209,9 @@ def get_dependencies(file_path: str) -> list[dict]:
 def get_dependents(file_path: str) -> list[dict]:
     """
     Get all files that import `file_path` (downstream dependents).
-    Pass the project-root-relative path, e.g. "test-codebase/utils.js".
+    Accepts either the full stored path (e.g. "chat-client/src/auth.js")
+    or just the path relative to the indexed folder (e.g. "src/auth.js") —
+    matches by suffix so both forms work.
     """
     _init_db()
     file_path = _normalize_path(file_path)
@@ -218,9 +222,9 @@ def get_dependents(file_path: str) -> list[dict]:
             """
             SELECT DISTINCT source_file
             FROM dependencies
-            WHERE imported_file = ?
+            WHERE imported_file = ? OR imported_file LIKE ?
             """,
-            (file_path,),
+            (file_path, f"%/{file_path}"),
         )
         rows = cursor.fetchall()
         return [{"source_file": row[0]} for row in rows]

@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import threading
+import os
+import traceback
+from pathlib import Path
+from urllib.parse import unquote
 
 from fastapi import FastAPI, Query, HTTPException, Depends, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.search.searcher import search
 from src.context.context_pack import assemble_context_pack
@@ -11,14 +16,15 @@ from src.agent.ollama_agent import query_agent
 from src.agent.watcher import start_watcher
 from src.health.checker import check_health
 from src.cache.query_cache import get_cache_stats, clear_cache
-from src.graph.import_resolver import get_dependencies, get_dependents
-from src.context.adr_store import get_adrs_for_file
+from src.graph.import_resolver import get_dependencies, get_dependents, build_graph
+from src.context.adr_store import get_adrs_for_file, load_adrs
 from src.reporter.report import generate_report
 from src.auth.middleware import require_auth
 from src.auth.api_keys import generate_api_key, list_api_keys, revoke_api_key
 from src.github.repo import get_repo_info, get_file_tree, get_file_tree_recursive, get_file_content
 from src.github.indexer import index_github_repo
 from src.github.pr_reader import list_pull_requests, get_pr_summary
+from src.indexer import index_directory
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -41,11 +47,12 @@ def health() -> dict:
 
 @app.get("/search")
 def search_endpoint(
-    query: str = Query(..., min_length=1),
-    top_k: int = Query(5, ge=1, le=50),
-    _auth=Depends(require_auth)
+        query: str = Query(..., min_length=1),
+        top_k: int = Query(5, ge=1, le=50),
+        directory: str = Query("."),
+        _auth=Depends(require_auth)
 ) -> dict:
-    results = search(query=query, top_k=top_k)
+    results = search(query=query, top_k=top_k, repo_path=directory)
     return {
         "query": query,
         "total": len(results),
@@ -55,8 +62,9 @@ def search_endpoint(
 
 @app.get("/context-pack")
 def context_pack_endpoint(
-    task: str = Query(..., min_length=1),
-    _auth=Depends(require_auth)
+        task: str = Query(..., min_length=1),
+        directory: str = Query("."),
+        _auth=Depends(require_auth)
 ) -> dict:
     """
     Assemble a comprehensive context pack for a given task.
@@ -66,7 +74,7 @@ def context_pack_endpoint(
         raise HTTPException(status_code=400, detail="task parameter is required and cannot be empty")
 
     try:
-        context_pack = assemble_context_pack(task=task, repo_path=".")
+        context_pack = assemble_context_pack(task=task, repo_path=directory)
         return context_pack
     except Exception as e:
         raise HTTPException(
@@ -77,23 +85,134 @@ def context_pack_endpoint(
 
 @app.get("/ask")
 def ask_endpoint(
-    task: str = Query(..., min_length=1),
-    _auth=Depends(require_auth)
+        task: str = Query(..., min_length=1),
+        agent: str = Query("ollama"),
+        directory: str = Query("."),
+        _auth=Depends(require_auth)
 ) -> dict:
     """
     Query the AI agent with a task. Returns answer based on codebase context.
+    agent can be: ollama, claude, openai, codex, groq, openrouter
     """
     if not task or not task.strip():
         raise HTTPException(status_code=400, detail="task parameter is required and cannot be empty")
 
     try:
-        result = query_agent(task=task, repo_path=".")
+        if agent == "ollama":
+            result = query_agent(task=task, repo_path=directory)
+        else:
+            from src.context.context_pack import assemble_context_pack
+            from src.orchestrator.agents import run_agent
+
+            pack = assemble_context_pack(task=task, repo_path=directory)
+            MAX_CHARS_PER_CHUNK = 800
+
+            chunks_text = ""
+            for chunk in pack.get("chunks", []):
+                content = chunk.get("content", "")
+                if len(content) > MAX_CHARS_PER_CHUNK:
+                    content = content[:MAX_CHARS_PER_CHUNK] + "\n... (truncated for length)"
+                chunks_text += f"\n--- {chunk.get('chunk_name')} ({chunk.get('file_path')}) ---\n"
+                chunks_text += content + "\n"
+
+            from src.agent.prompt_builder import pick_instruction
+            instruction = pick_instruction(task)
+
+            prompt = f"""TASK: {task}
+
+=== RELEVANT CODE FROM CODEBASE ===
+{chunks_text}
+
+{instruction}"""
+            agent_result = run_agent(agent, prompt, max_tokens=1500)
+            result = {
+                "task": task,
+                "answer": agent_result.get("answer", ""),
+                "error": agent_result.get("error"),
+                "cached": False,
+                "context_used": {"chunks": len(pack.get("chunks", []))}
+            }
         return result
     except Exception as e:
+        print(traceback.format_exc())
+        return {
+            "error": "Agent query failed",
+            "message": str(e),
+            "answer": "",
+            "task": task
+        }
+
+
+@app.get("/index")
+def index_endpoint(directory: str = Query("test-codebase")) -> dict:
+    """
+    Index a directory: chunk files, embed, and store in Qdrant.
+    Also builds dependency graph and loads ADRs.
+    """
+    if not directory or not directory.strip():
+        directory = "test-codebase"
+
+    # Decode URL-encoded path (e.g., %5C becomes \)
+    directory = unquote(directory)
+
+    print(f"[API] /index called with directory: {directory}")
+
+    # Check if directory exists
+    dir_path = Path(directory)
+    if not dir_path.exists():
+        print(f"[API] Directory not found: {directory}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Directory not found: {directory}"
+        )
+
+    if not dir_path.is_dir():
+        print(f"[API] Path is not a directory: {directory}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Path is not a directory: {directory}"
+        )
+
+    try:
+        print(f"[API] Starting index of {directory}")
+
+        # Index the directory
+        index_result = index_directory(directory)
+
+        # Build dependency graph
+        build_graph(directory)
+
+        # Load ADRs
+        load_adrs("docs/adr")
+
+        return {
+            "status": "ok",
+            "directory": directory,
+            "total_files": index_result.get("total_files", 0),
+            "total_chunks": index_result.get("total_chunks", 0),
+        }
+    except Exception as e:
+        print(f"[API] Index failed: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Agent query failed: {str(e)}"
+            detail=f"Indexing failed: {str(e)}"
         )
+
+@app.get("/index/progress")
+def index_progress_endpoint() -> dict:
+    """Poll this while indexing is running to get live progress."""
+    from src.indexer import indexing_progress
+    total = indexing_progress["total_chunks"]
+    processed = indexing_progress["processed_chunks"]
+    percent = round((processed / total) * 100, 1) if total > 0 else 0
+    return {
+        "active": indexing_progress["active"],
+        "total_chunks": total,
+        "processed_chunks": processed,
+        "percent": percent,
+        "current_file": indexing_progress["current_file"],
+    }
+
 
 
 @app.post("/watch")
@@ -188,15 +307,16 @@ def adrs_endpoint(file: str = Query(..., min_length=1)) -> dict:
 
 @app.get("/report")
 def report_endpoint(
-    task: str = Query(..., min_length=1),
-    _auth=Depends(require_auth)
+        task: str = Query(..., min_length=1),
+        directory: str = Query("."),
+        _auth=Depends(require_auth)
 ) -> dict:
     """Generate a comprehensive markdown report for a task."""
     if not task or not task.strip():
         raise HTTPException(status_code=400, detail="task parameter is required")
 
     try:
-        report = generate_report(task=task, repo_path=".")
+        report = generate_report(task=task, repo_path=directory)
         return {
             "task": task,
             "report": report,
@@ -426,14 +546,15 @@ def github_file_endpoint(
 
 @app.get("/github/index")
 def github_index_endpoint(
-    owner: str = Query(..., min_length=1),
-    repo: str = Query(..., min_length=1),
-    branch: str = Query("main")
+        owner: str = Query(..., min_length=1),
+        repo: str = Query(..., min_length=1),
+        branch: str = Query("main")
 ) -> dict:
     """Index a GitHub repository into Qdrant."""
     try:
         return index_github_repo(owner, repo, branch)
     except Exception as e:
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -457,6 +578,65 @@ def github_prs_endpoint(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/github/ask")
+def github_ask_endpoint(
+        task: str = Query(..., min_length=1),
+        owner: str = Query(..., min_length=1),
+        repo: str = Query(..., min_length=1),
+        agent: str = Query("groq"),
+) -> dict:
+    """Ask a question about an already-indexed GitHub repo."""
+    if not task or not task.strip():
+        raise HTTPException(status_code=400, detail="task parameter is required")
+
+    try:
+        github_repo_path = f"github:{owner}/{repo}"
+
+        if agent == "ollama":
+            result = query_agent(task=task, repo_path=github_repo_path)
+        else:
+            from src.context.context_pack import assemble_context_pack
+            from src.orchestrator.agents import run_agent
+            from src.agent.prompt_builder import pick_instruction
+
+            pack = assemble_context_pack(task=task, repo_path=github_repo_path)
+            MAX_CHARS_PER_CHUNK = 800
+
+            chunks_text = ""
+            for chunk in pack.get("chunks", []):
+                content = chunk.get("content", "")
+                if len(content) > MAX_CHARS_PER_CHUNK:
+                    content = content[:MAX_CHARS_PER_CHUNK] + "\n... (truncated for length)"
+                chunks_text += f"\n--- {chunk.get('chunk_name')} ({chunk.get('file_path')}) ---\n"
+                chunks_text += content + "\n"
+
+            instruction = pick_instruction(task)
+            prompt = f"""TASK: {task}
+
+=== RELEVANT CODE FROM CODEBASE ===
+{chunks_text}
+
+{instruction}"""
+
+            agent_result = run_agent(agent, prompt, max_tokens=1500)
+            result = {
+                "task": task,
+                "answer": agent_result.get("answer", ""),
+                "error": agent_result.get("error"),
+                "cached": False,
+                "context_used": {"chunks": len(pack.get("chunks", []))},
+            }
+        return result
+    except Exception as e:
+        print(traceback.format_exc())
+        return {
+            "error": "Agent query failed",
+            "message": str(e),
+            "answer": "",
+            "task": task,
+        }
+
+
 @app.get("/github/pr")
 def github_pr_endpoint(
     owner: str = Query(..., min_length=1),
@@ -474,16 +654,70 @@ def github_pr_endpoint(
 
 @app.get("/orchestrate/agents")
 def orchestrate_agents_endpoint() -> dict:
-    """Get list of available agents."""
+    """Get list of available agents with details."""
+    import os
     from src.orchestrator.agents import get_available_agents
-    agents = get_available_agents()
-    return {"agents": agents, "total": len(agents)}
+
+    available_agents = get_available_agents()
+
+    # Define all agents with their details
+    agent_details = {
+        "ollama": {
+            "name": "ollama",
+            "model": "llama3.2",
+            "available": "ollama" in available_agents,
+            "reason": None if "ollama" in available_agents else "Ollama not reachable"
+        },
+        "claude": {
+            "name": "claude",
+            "model": "claude-3-5-haiku-20241022",
+            "available": "claude" in available_agents,
+            "reason": None if "claude" in available_agents else "API key not configured"
+        },
+        "openai": {
+            "name": "openai",
+            "model": "gpt-3.5-turbo",
+            "available": "openai" in available_agents,
+            "reason": None if "openai" in available_agents else "API key not configured"
+        },
+        "groq": {
+            "name": "groq",
+            "model": "llama-3.1-8b-instant",
+            "available": "groq" in available_agents,
+            "reason": None if "groq" in available_agents else "API key not configured"
+        },
+        "openrouter": {
+            "name": "openrouter",
+            "model": "mistralai/mistral-7b-instruct:free",
+            "available": "openrouter" in available_agents,
+            "reason": None if "openrouter" in available_agents else "API key not configured"
+        },
+        "codex": {
+            "name": "codex",
+            "model": "gpt-3.5-turbo (code-focused)",
+            "available": "codex" in available_agents,
+            "reason": None if "codex" in available_agents else "API key not configured"
+        }
+    }
+
+    agents_list = [
+        {
+            "name": details["name"],
+            "model": details["model"],
+            "available": details["available"],
+            "reason": details["reason"]
+        }
+        for details in agent_details.values()
+    ]
+
+    return {"agents": agents_list, "total": len([a for a in agents_list if a["available"]])}
 
 
 @app.get("/orchestrate")
 def orchestrate_endpoint(
-    task: str = Query(..., min_length=1),
-    mode: str = Query("auto")
+        task: str = Query(..., min_length=1),
+        mode: str = Query("auto"),
+        directory: str = Query(".")
 ) -> dict:
     """Run multi-agent orchestration pipeline."""
     if not task or not task.strip():
@@ -491,7 +725,7 @@ def orchestrate_endpoint(
 
     try:
         from src.orchestrator.orchestrator import orchestrate
-        result = orchestrate(task, mode=mode, repo_path=".")
+        result = orchestrate(task, mode=mode, repo_path=directory)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -558,8 +792,9 @@ def recommend_endpoint(task: str = Query(..., min_length=1)) -> dict:
 
 @app.get("/compare")
 def compare_endpoint(
-    task: str = Query(..., min_length=1),
-    agents: str = Query(None)
+        task: str = Query(..., min_length=1),
+        agents: str = Query(None),
+        directory: str = Query(".")
 ) -> dict:
     """Compare multiple agents on the same task."""
     from src.orchestrator.agents import get_available_agents
@@ -574,6 +809,74 @@ def compare_endpoint(
     if not agent_list:
         agent_list = ["ollama"]  # Fallback to ollama
 
-    result = compare_agents(task, agent_list, ".")
+    result = compare_agents(task, agent_list, directory)
     return result
 
+
+@app.post("/settings")
+def save_settings(body: dict) -> dict:
+    """Save API keys to .env file"""
+    import os
+    from pathlib import Path
+
+    claude_key = body.get("claude_key", "")
+    openai_key = body.get("openai_key", "")
+
+    env_path = Path(".env")
+
+    try:
+        # Read existing .env content
+        if env_path.exists():
+            content = env_path.read_text(encoding="utf-8")
+        else:
+            content = ""
+
+        # Update or add keys
+        lines = content.split("\n")
+        updated_lines = []
+        claude_found = False
+        openai_found = False
+
+        for line in lines:
+            if line.startswith("ANTHROPIC_API_KEY="):
+                if claude_key:
+                    updated_lines.append(f"ANTHROPIC_API_KEY={claude_key}")
+                    claude_found = True
+                # Skip if we're clearing the key
+            elif line.startswith("OPENAI_API_KEY="):
+                if openai_key:
+                    updated_lines.append(f"OPENAI_API_KEY={openai_key}")
+                    openai_found = True
+                # Skip if we're clearing the key
+            else:
+                if line.strip():  # Keep non-empty lines
+                    updated_lines.append(line)
+
+        # Add new keys if they weren't found
+        if claude_key and not claude_found:
+            updated_lines.append(f"ANTHROPIC_API_KEY={claude_key}")
+        if openai_key and not openai_found:
+            updated_lines.append(f"OPENAI_API_KEY={openai_key}")
+
+        # Write back to .env
+        new_content = "\n".join(updated_lines)
+        if new_content and not new_content.endswith("\n"):
+            new_content += "\n"
+
+        env_path.write_text(new_content, encoding="utf-8")
+
+        # Also update os.environ so changes take effect immediately
+        if claude_key:
+            os.environ["ANTHROPIC_API_KEY"] = claude_key
+        if openai_key:
+            os.environ["OPENAI_API_KEY"] = openai_key
+
+        return {"status": "saved"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save settings: {str(e)}")
+
+
+@app.get("/dashboard")
+def serve_dashboard():
+    """Serve dashboard at http://localhost:8000/dashboard"""
+    return FileResponse("dashboard_phase13.html")

@@ -27,7 +27,7 @@ def stream_agent(task: str, repo_path: str = ".") -> Iterator[str]:
     except Exception as e:
         raise RuntimeError(f"Failed to assemble context: {e}")
 
-    client = httpx.Client(timeout=300.0)
+    client = httpx.Client(timeout=600.0)
     try:
         url = f"{OLLAMA_URL}/api/generate"
         body = {

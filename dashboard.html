@@ -505,340 +505,376 @@
 </main>
 
 <script>
-const API = 'http://localhost:8000';
+    const API_URL = 'http://localhost:8000';
+    let currentAnswerText = '';
 
-// NAV
-document.querySelectorAll('.nav-item').forEach(item => {
-  item.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-    item.classList.add('active');
-    document.getElementById('panel-' + item.dataset.panel).classList.add('active');
-  });
+    marked.setOptions({
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          return hljs.highlight(code, { language: lang }).value;
+        }
+        return hljs.highlightAuto(code).value;
+      }
+    });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    background: '#16161a',
+    primaryColor: '#1e1e24',
+    primaryTextColor: '#e8e8f0',
+    primaryBorderColor: '#00e5a0',
+    lineColor: '#00e5a0',
+    secondaryColor: '#1e1e24',
+    tertiaryColor: '#0d0d0f'
+  }
 });
-
-// HEALTH CHECK ON LOAD
-async function pingHealth() {
-  try {
-    const r = await fetch(API + '/health');
-    const d = await r.json();
-    document.getElementById('health-dot').className = 'health-dot ok';
-    document.getElementById('health-label').textContent = 'API online';
-  } catch {
-    document.getElementById('health-dot').className = 'health-dot err';
-    document.getElementById('health-label').textContent = 'API offline';
-  }
-}
-pingHealth();
-
-// COPY
-function copyAnswer() {
-  const text = document.getElementById('ask-result').textContent;
-  navigator.clipboard.writeText(text);
-}
-
-// ASK
-async function doAsk() {
-  const task = document.getElementById('ask-input').value.trim();
-  if (!task) return;
-  const useStream = document.getElementById('stream-toggle').checked;
-  if (useStream) { doStream(); return; }
-
-  const btn = document.getElementById('ask-btn');
-  btn.disabled = true; btn.textContent = 'Asking...';
-  const box = document.getElementById('ask-result');
-  box.textContent = '';
-  document.getElementById('ask-footer').style.display = 'none';
-  document.getElementById('copy-btn').style.display = 'none';
-
-  try {
-    const r = await fetch(API + '/ask?task=' + encodeURIComponent(task));
-    const d = await r.json();
-    if (!r.ok) { box.textContent = 'Error: ' + (d.detail || r.status); return; }
-    box.textContent = d.answer;
-    showFooter(d);
-    document.getElementById('copy-btn').style.display = '';
-  } catch(e) {
-    box.textContent = 'Could not reach API. Is it running on port 8000?';
-  } finally {
-    btn.disabled = false; btn.textContent = 'Ask';
-  }
-}
-
-// STREAM
-function doStream() {
-  const task = document.getElementById('ask-input').value.trim();
-  if (!task) return;
-  const box = document.getElementById('ask-result');
-  box.textContent = '';
-  box.classList.add('streaming');
-  document.getElementById('ask-footer').style.display = 'none';
-  document.getElementById('copy-btn').style.display = 'none';
-
-  const cursor = document.createElement('span');
-  cursor.className = 'cursor';
-  box.appendChild(cursor);
-
-  const es = new EventSource(API + '/stream?task=' + encodeURIComponent(task));
-  es.onmessage = e => {
-    if (e.data === '[DONE]') {
-      es.close();
-      cursor.remove();
-      box.classList.remove('streaming');
-      document.getElementById('copy-btn').style.display = '';
-      return;
+    function copyAnswerToClipboard(buttonEl, rawText) {
+      navigator.clipboard.writeText(rawText).then(() => {
+        const originalText = buttonEl.textContent;
+        buttonEl.textContent = 'Copied!';
+        setTimeout(() => { buttonEl.textContent = originalText; }, 1500);
+      });
     }
-    box.insertBefore(document.createTextNode(e.data), cursor);
-    box.scrollTop = box.scrollHeight;
-  };
-  es.onerror = () => {
-    es.close();
-    cursor.remove();
-    box.classList.remove('streaming');
-  };
-}
 
-function showFooter(d) {
-  const f = document.getElementById('ask-footer');
-  const cu = d.context_used || {};
-  f.style.display = 'flex';
-  f.innerHTML = `
-    <span>chunks <b class="val">${cu.chunks||0}</b></span>
-    <span>ADRs <b class="val">${cu.adrs||0}</b></span>
-    <span>deps <b class="val">${cu.dependencies||0}</b></span>
-    <span>commits <b class="val">${cu.git_commits||0}</b></span>
-    ${d.cached ? '<span class="cached-badge">CACHED</span>' : ''}
-  `;
-}
-
-// SEARCH
-async function doSearch() {
-  const q = document.getElementById('search-input').value.trim();
-  const k = document.getElementById('search-topk').value;
-  if (!q) return;
-  const el = document.getElementById('search-results');
-  el.innerHTML = '<div class="empty">Searching...</div>';
-
-  try {
-    const r = await fetch(API + '/search?query=' + encodeURIComponent(q) + '&top_k=' + k);
-    const d = await r.json();
-    if (!d.results || !d.results.length) { el.innerHTML = '<div class="empty">No results found</div>'; return; }
-    el.innerHTML = d.results.map((c,i) => `
-      <div class="chunk-card">
-        <div class="chunk-header" onclick="toggleChunk(${i})">
-          <span class="chunk-name">${c.chunk_name}</span>
-          <span class="chunk-type">${c.chunk_type}</span>
-          <span class="chunk-file">${c.file_path} :${c.start_line}-${c.end_line}</span>
-          <span class="chunk-score">${(c.score*100).toFixed(1)}%</span>
-        </div>
-        <div class="chunk-body" id="cb-${i}">
-          <div class="chunk-content">${escHtml(c.content)}</div>
-        </div>
-      </div>
-    `).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
-
-function toggleChunk(i) {
-  const el = document.getElementById('cb-' + i);
-  el.classList.toggle('open');
-}
-
-// REPORT
-async function doReport() {
-  const task = document.getElementById('report-input').value.trim();
-  if (!task) return;
-  const el = document.getElementById('report-out');
-  el.style.display = 'block';
-  el.innerHTML = '<span style="color:var(--muted)">Generating report...</span>';
-
-  try {
-    const r = await fetch(API + '/report?task=' + encodeURIComponent(task));
-    const d = await r.json();
-    el.innerHTML = mdToHtml(d.report || '');
-  } catch(e) {
-    el.innerHTML = 'Error: ' + e.message;
-  }
-}
-
-// DEPS
-async function doDeps() {
-  const file = document.getElementById('deps-input').value.trim();
-  if (!file) return;
-  const el = document.getElementById('deps-result');
-  el.innerHTML = '<div class="empty">Loading...</div>';
-
-  try {
-    const r = await fetch(API + '/graph/dependencies?file=' + encodeURIComponent(file));
-    const d = await r.json();
-    if (!d.dependencies || !d.dependencies.length) {
-      el.innerHTML = '<div class="empty">No dependencies found</div>'; return;
+    function toggleAnswerExpand(boxId, btnEl) {
+      const box = document.getElementById(boxId);
+      box.classList.toggle('collapsed');
+      btnEl.textContent = box.classList.contains('collapsed') ? 'Show more' : 'Show less';
     }
-    el.innerHTML = d.dependencies.map(dep => `
-      <div class="dep-item">
-        <span class="dep-arrow">→</span>
-        <div>
-          <div class="dep-file">${dep.imported_file}</div>
-          <div class="dep-names">${dep.imported_names}</div>
-        </div>
-      </div>
-    `).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
 
-// ADRS
-async function doAdrs() {
-  const file = document.getElementById('adrs-input').value.trim();
-  if (!file) return;
-  const el = document.getElementById('adrs-result');
-  el.innerHTML = '<div class="empty">Loading...</div>';
+    // NAV
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        item.classList.add('active');
+        document.getElementById('panel-' + item.dataset.panel).classList.add('active');
+      });
+    });
 
-  try {
-    const r = await fetch(API + '/adrs?file=' + encodeURIComponent(file));
-    const d = await r.json();
-    if (!d.adrs || !d.adrs.length) {
-      el.innerHTML = '<div class="empty">No ADRs found for this file</div>'; return;
+    // HEALTH CHECK ON LOAD
+    async function pingHealth() {
+      try {
+        const r = await fetch(API + '/health');
+        const d = await r.json();
+        document.getElementById('health-dot').className = 'health-dot ok';
+        document.getElementById('health-label').textContent = 'API online';
+      } catch {
+        document.getElementById('health-dot').className = 'health-dot err';
+        document.getElementById('health-label').textContent = 'API offline';
+      }
     }
-    el.innerHTML = d.adrs.map(a => `
-      <div class="adr-card">
-        <div class="adr-id">${a.adr_id} · ${a.status}</div>
-        <div class="adr-title">${a.title}</div>
-        <div class="adr-decision">${a.decision}</div>
-      </div>
-    `).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
+    pingHealth();
 
-// GIT
-async function doGit() {
-  const file = document.getElementById('git-input').value.trim();
-  if (!file) return;
-  const el = document.getElementById('git-result');
-  el.innerHTML = '<div class="empty">Loading...</div>';
-
-  try {
-    const r = await fetch(API + '/context-pack?task=git+history+for+' + encodeURIComponent(file));
-    const d = await r.json();
-    const commits = d.git_history || [];
-    if (!commits.length) {
-      el.innerHTML = '<div class="empty">No commits found</div>'; return;
+    // COPY
+    function copyAnswer() {
+      const text = document.getElementById('ask-result').textContent;
+      navigator.clipboard.writeText(text);
     }
-    el.innerHTML = commits.map(c => `
-      <div class="commit-item">
-        <span class="commit-hash">${c.commit_hash}</span>
-        <span class="commit-msg">${escHtml(c.message)}</span>
-        <span class="commit-meta">${c.author_name} · ${c.date}</span>
-      </div>
-    `).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
 
-// HEALTH
-async function doHealth() {
-  const el = document.getElementById('health-cards');
-  el.innerHTML = '<div class="empty">Checking...</div>';
-  try {
-    const r = await fetch(API + '/health/full');
-    const d = await r.json();
-    const services = ['ollama','qdrant','qdrant_collection','sqlite'];
-    el.innerHTML = services.map(s => {
-      const svc = d[s] || {};
-      const ok = svc.status === 'ok';
-      return `<div class="health-card">
-        <div class="health-card-name">${s}</div>
-        <div class="health-status ${ok?'ok':'err'}">${ok?'OK':'ERR'}</div>
-        <div class="health-msg">${svc.message||''}</div>
-      </div>`;
-    }).join('') + `<div class="health-card">
-      <div class="health-card-name">overall</div>
-      <div class="health-status ${d.overall==='healthy'?'ok':'err'}">${(d.overall||'').toUpperCase()}</div>
-    </div>`;
-    document.getElementById('health-dot').className = 'health-dot ' + (d.overall==='healthy'?'ok':'err');
-    document.getElementById('health-label').textContent = d.overall;
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
+    // ASK
+    async function doAsk() {
+      const task = document.getElementById('ask-input').value.trim();
+      if (!task) return;
+      const useStream = document.getElementById('stream-toggle').checked;
+      if (useStream) { doStream(); return; }
 
-// INDEX
-async function doIndex() {
-  const btn = event.target;
-  btn.disabled = true; btn.textContent = 'Indexing...';
-  const el = document.getElementById('index-result');
-  el.style.display = 'block';
-  el.textContent = 'Indexing test-codebase...';
-  try {
-    const r = await fetch(API + '/index?directory=test-codebase');
-    const d = await r.json();
-    el.textContent = JSON.stringify(d, null, 2);
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-  } finally {
-    btn.disabled = false; btn.textContent = 'Re-index test-codebase';
-  }
-}
+      const btn = document.getElementById('ask-btn');
+      btn.disabled = true; btn.textContent = 'Asking...';
+      const box = document.getElementById('ask-result');
+      box.textContent = '';
+      document.getElementById('ask-footer').style.display = 'none';
+      document.getElementById('copy-btn').style.display = 'none';
 
-async function doIndexCustom() {
-  const dir = document.getElementById('index-input').value.trim() || 'test-codebase';
-  const el = document.getElementById('index-out');
-  el.style.display = 'block';
-  el.textContent = 'Indexing ' + dir + '...';
-  try {
-    const r = await fetch(API + '/index?directory=' + encodeURIComponent(dir));
-    const d = await r.json();
-    el.textContent = JSON.stringify(d, null, 2);
-  } catch(e) {
-    el.textContent = 'Error: ' + e.message;
-  }
-}
+      try {
+        const r = await fetch(API + '/ask?task=' + encodeURIComponent(task));
+        const d = await r.json();
+        if (!r.ok) { box.textContent = 'Error: ' + (d.detail || r.status); return; }
+        box.textContent = d.answer;
+        showFooter(d);
+        document.getElementById('copy-btn').style.display = '';
+      } catch(e) {
+        box.textContent = 'Could not reach API. Is it running on port 8000?';
+      } finally {
+        btn.disabled = false; btn.textContent = 'Ask';
+      }
+    }
 
-// CACHE
-async function doGetCacheStats() {
-  const el = document.getElementById('cache-stats');
-  try {
-    const r = await fetch(API + '/cache/stats');
-    const d = await r.json();
-    el.innerHTML = `
-      <div class="stat-card"><div class="stat-val">${d.total_entries}</div><div class="stat-label">cached queries</div></div>
-      <div class="stat-card"><div class="stat-val">${d.total_hits}</div><div class="stat-label">total hits</div></div>
-    `;
-  } catch(e) {
-    el.innerHTML = '<div class="empty">API unreachable</div>';
-  }
-}
+    // STREAM
+    function doStream() {
+      const task = document.getElementById('ask-input').value.trim();
+      if (!task) return;
+      const box = document.getElementById('ask-result');
+      box.textContent = '';
+      box.classList.add('streaming');
+      document.getElementById('ask-footer').style.display = 'none';
+      document.getElementById('copy-btn').style.display = 'none';
 
-async function doClearCache() {
-  if (!confirm('Clear all cached queries?')) return;
-  try {
-    await fetch(API + '/cache', { method: 'DELETE' });
-    doGetCacheStats();
-  } catch(e) { alert('Error: ' + e.message); }
-}
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      box.appendChild(cursor);
 
-// UTILS
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+      const es = new EventSource(API + '/stream?task=' + encodeURIComponent(task));
+      es.onmessage = e => {
+        if (e.data === '[DONE]') {
+          es.close();
+          cursor.remove();
+          box.classList.remove('streaming');
+          document.getElementById('copy-btn').style.display = '';
+          return;
+        }
+        box.insertBefore(document.createTextNode(e.data), cursor);
+        box.scrollTop = box.scrollHeight;
+      };
+      es.onerror = () => {
+        es.close();
+        cursor.remove();
+        box.classList.remove('streaming');
+      };
+    }
 
-function mdToHtml(md) {
-  return md
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/^- (.+)$/gm, '<li>$1</li>')
-    .replace(/\n\n/g, '<br><br>');
-}
+    function showFooter(d) {
+      const f = document.getElementById('ask-footer');
+      const cu = d.context_used || {};
+      f.style.display = 'flex';
+      f.innerHTML = `
+        <span>chunks <b class="val">${cu.chunks||0}</b></span>
+        <span>ADRs <b class="val">${cu.adrs||0}</b></span>
+        <span>deps <b class="val">${cu.dependencies||0}</b></span>
+        <span>commits <b class="val">${cu.git_commits||0}</b></span>
+        ${d.cached ? '<span class="cached-badge">CACHED</span>' : ''}
+      `;
+    }
+
+    // SEARCH
+    async function doSearch() {
+      const q = document.getElementById('search-input').value.trim();
+      const k = document.getElementById('search-topk').value;
+      if (!q) return;
+      const el = document.getElementById('search-results');
+      el.innerHTML = '<div class="empty">Searching...</div>';
+
+      try {
+        const r = await fetch(API + '/search?query=' + encodeURIComponent(q) + '&top_k=' + k);
+        const d = await r.json();
+        if (!d.results || !d.results.length) { el.innerHTML = '<div class="empty">No results found</div>'; return; }
+        el.innerHTML = d.results.map((c,i) => `
+          <div class="chunk-card">
+            <div class="chunk-header" onclick="toggleChunk(${i})">
+              <span class="chunk-name">${c.chunk_name}</span>
+              <span class="chunk-type">${c.chunk_type}</span>
+              <span class="chunk-file">${c.file_path} :${c.start_line}-${c.end_line}</span>
+              <span class="chunk-score">${(c.score*100).toFixed(1)}%</span>
+            </div>
+            <div class="chunk-body" id="cb-${i}">
+              <div class="chunk-content">${escHtml(c.content)}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    function toggleChunk(i) {
+      const el = document.getElementById('cb-' + i);
+      el.classList.toggle('open');
+    }
+
+    // REPORT
+    async function doReport() {
+      const task = document.getElementById('report-input').value.trim();
+      if (!task) return;
+      const el = document.getElementById('report-out');
+      el.style.display = 'block';
+      el.innerHTML = '<span style="color:var(--muted)">Generating report...</span>';
+
+      try {
+        const r = await fetch(API + '/report?task=' + encodeURIComponent(task));
+        const d = await r.json();
+        el.innerHTML = mdToHtml(d.report || '');
+      } catch(e) {
+        el.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    // DEPS
+    async function doDeps() {
+      const file = document.getElementById('deps-input').value.trim();
+      if (!file) return;
+      const el = document.getElementById('deps-result');
+      el.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        const r = await fetch(API + '/graph/dependencies?file=' + encodeURIComponent(file));
+        const d = await r.json();
+        if (!d.dependencies || !d.dependencies.length) {
+          el.innerHTML = '<div class="empty">No dependencies found</div>'; return;
+        }
+        el.innerHTML = d.dependencies.map(dep => `
+          <div class="dep-item">
+            <span class="dep-arrow">→</span>
+            <div>
+              <div class="dep-file">${dep.imported_file}</div>
+              <div class="dep-names">${dep.imported_names}</div>
+            </div>
+          </div>
+        `).join('');
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    // ADRS
+    async function doAdrs() {
+      const file = document.getElementById('adrs-input').value.trim();
+      if (!file) return;
+      const el = document.getElementById('adrs-result');
+      el.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        const r = await fetch(API + '/adrs?file=' + encodeURIComponent(file));
+        const d = await r.json();
+        if (!d.adrs || !d.adrs.length) {
+          el.innerHTML = '<div class="empty">No ADRs found for this file</div>'; return;
+        }
+        el.innerHTML = d.adrs.map(a => `
+          <div class="adr-card">
+            <div class="adr-id">${a.adr_id} · ${a.status}</div>
+            <div class="adr-title">${a.title}</div>
+            <div class="adr-decision">${a.decision}</div>
+          </div>
+        `).join('');
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    // GIT
+    async function doGit() {
+      const file = document.getElementById('git-input').value.trim();
+      if (!file) return;
+      const el = document.getElementById('git-result');
+      el.innerHTML = '<div class="empty">Loading...</div>';
+
+      try {
+        const r = await fetch(API + '/context-pack?task=git+history+for+' + encodeURIComponent(file));
+        const d = await r.json();
+        const commits = d.git_history || [];
+        if (!commits.length) {
+          el.innerHTML = '<div class="empty">No commits found</div>'; return;
+        }
+        el.innerHTML = commits.map(c => `
+          <div class="commit-item">
+            <span class="commit-hash">${c.commit_hash}</span>
+            <span class="commit-msg">${escHtml(c.message)}</span>
+            <span class="commit-meta">${c.author_name} · ${c.date}</span>
+          </div>
+        `).join('');
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    // HEALTH
+    async function doHealth() {
+      const el = document.getElementById('health-cards');
+      el.innerHTML = '<div class="empty">Checking...</div>';
+      try {
+        const r = await fetch(API + '/health/full');
+        const d = await r.json();
+        const services = ['ollama','qdrant','qdrant_collection','sqlite'];
+        el.innerHTML = services.map(s => {
+          const svc = d[s] || {};
+          const ok = svc.status === 'ok';
+          return `<div class="health-card">
+            <div class="health-card-name">${s}</div>
+            <div class="health-status ${ok?'ok':'err'}">${ok?'OK':'ERR'}</div>
+            <div class="health-msg">${svc.message||''}</div>
+          </div>`;
+        }).join('') + `<div class="health-card">
+          <div class="health-card-name">overall</div>
+          <div class="health-status ${d.overall==='healthy'?'ok':'err'}">${(d.overall||'').toUpperCase()}</div>
+        </div>`;
+        document.getElementById('health-dot').className = 'health-dot ' + (d.overall==='healthy'?'ok':'err');
+        document.getElementById('health-label').textContent = d.overall;
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    // INDEX
+    async function doIndex() {
+      const btn = event.target;
+      btn.disabled = true; btn.textContent = 'Indexing...';
+      const el = document.getElementById('index-result');
+      el.style.display = 'block';
+      el.textContent = 'Indexing test-codebase...';
+      try {
+        const r = await fetch(API + '/index?directory=test-codebase');
+        const d = await r.json();
+        el.textContent = JSON.stringify(d, null, 2);
+      } catch(e) {
+        el.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Re-index test-codebase';
+      }
+    }
+
+    async function doIndexCustom() {
+      const dir = document.getElementById('index-input').value.trim() || 'test-codebase';
+      const el = document.getElementById('index-out');
+      el.style.display = 'block';
+      el.textContent = 'Indexing ' + dir + '...';
+      try {
+        const r = await fetch(API + '/index?directory=' + encodeURIComponent(dir));
+        const d = await r.json();
+        el.textContent = JSON.stringify(d, null, 2);
+      } catch(e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    // CACHE
+    async function doGetCacheStats() {
+      const el = document.getElementById('cache-stats');
+      try {
+        const r = await fetch(API + '/cache/stats');
+        const d = await r.json();
+        el.innerHTML = `
+          <div class="stat-card"><div class="stat-val">${d.total_entries}</div><div class="stat-label">cached queries</div></div>
+          <div class="stat-card"><div class="stat-val">${d.total_hits}</div><div class="stat-label">total hits</div></div>
+        `;
+      } catch(e) {
+        el.innerHTML = '<div class="empty">API unreachable</div>';
+      }
+    }
+
+    async function doClearCache() {
+      if (!confirm('Clear all cached queries?')) return;
+      try {
+        await fetch(API + '/cache', { method: 'DELETE' });
+        doGetCacheStats();
+      } catch(e) { alert('Error: ' + e.message); }
+    }
+
+    // UTILS
+    function escHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function mdToHtml(md) {
+      return md
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/\n\n/g, '<br><br>');
+    }
 </script>
 </body>
 </html>

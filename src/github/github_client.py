@@ -27,7 +27,7 @@ def gh_get(path: str) -> dict | list:
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if GITHUB_TOKEN:
-        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
 
     try:
         response = httpx.get(url, headers=headers, timeout=30.0)

@@ -5,7 +5,7 @@ from pathlib import Path
 from src.github.repo import get_file_tree_recursive, get_file_content
 from src.chunker.chunker import chunk_file_any
 from src.embedder.embedder import get_embedding
-from src.storage.qdrant_store import setup_collection, store_chunk
+from src.storage.qdrant_store import setup_collection, store_chunk, get_collection_name
 
 
 def index_github_repo(owner: str, repo: str,
@@ -25,7 +25,8 @@ def index_github_repo(owner: str, repo: str,
     Returns:
         Summary dict with total_files, total_chunks, skipped_files, status
     """
-    setup_collection()
+    collection_name = get_collection_name(f"github:{owner}/{repo}")
+    setup_collection(collection_name)
 
     supported_exts = {".js", ".jsx", ".ts", ".tsx", ".py",
                      ".java", ".go", ".rs"}
@@ -71,10 +72,10 @@ def index_github_repo(owner: str, repo: str,
 
                     # Get embedding and store
                     embedding = get_embedding(chunk.content)
-                    store_chunk(chunk, embedding)
+                    store_chunk(chunk, embedding, collection_name)
                     total_chunks += 1
 
-                print(f"✓ {file_item['path']}: {len(chunks)} chunks")
+                print(f"[OK] {file_item['path']}: {len(chunks)} chunks")
 
             finally:
                 # Clean up temp file
@@ -84,7 +85,7 @@ def index_github_repo(owner: str, repo: str,
                     pass
 
         except Exception as e:
-            print(f"✗ {file_item['path']}: {e}")
+            print(f"[SKIP] {file_item['path']}: {e}")
             skipped_files += 1
 
     return {
